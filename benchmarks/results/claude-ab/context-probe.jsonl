@@ -1,0 +1,18 @@
+{"variant": "V0-default", "attempt": 1, "context": 23141, "cache_read": 23139, "cache_create": 0, "cost_usd": 0.0023579000000000004, "result": "ok"}
+{"variant": "V0-default", "attempt": 2, "context": 23141, "cache_read": 23139, "cache_create": 0, "cost_usd": 0.0023579000000000004, "result": "ok"}
+{"variant": "V1-no-mcp-connectors", "attempt": 1, "context": 21205, "cache_read": 11092, "cache_create": 10111, "cost_usd": 0.0415972, "result": "ok"}
+{"variant": "V1-no-mcp-connectors", "attempt": 2, "context": 21205, "cache_read": 21203, "cache_create": 0, "cost_usd": 0.0021643, "result": "ok"}
+{"variant": "V2-V1+no-skills", "attempt": 1, "context": 20784, "cache_read": 16732, "cache_create": 4050, "cost_usd": 0.017917199999999998, "result": "ok"}
+{"variant": "V2-V1+no-skills", "attempt": 2, "context": 20784, "cache_read": 20782, "cache_create": 0, "cost_usd": 0.0021222000000000003, "result": "ok"}
+{"variant": "V3-V2+lean-tools", "attempt": 1, "context": 8170, "cache_read": 4994, "cache_create": 3174, "cost_usd": 0.0132394, "result": "ok"}
+{"variant": "V3-V2+lean-tools", "attempt": 2, "context": 8170, "cache_read": 8168, "cache_create": 0, "cost_usd": 0.0008608, "result": "ok"}
+{"variant": "V4-V3+no-dynamic-sections", "attempt": 1, "context": 7981, "cache_read": 4994, "cache_create": 2985, "cost_usd": 0.012483399999999999, "result": "ok"}
+{"variant": "V4-V3+no-dynamic-sections", "attempt": 2, "context": 7981, "cache_read": 7979, "cache_create": 0, "cost_usd": 0.0008419, "result": "ok"}
+{"variant": "V5-V4+no-user-settings", "attempt": 1, "context": 7482, "cache_read": 5676, "cache_create": 1804, "cost_usd": 0.0078276, "result": "ok"}
+{"variant": "V5-V4+no-user-settings", "attempt": 2, "context": 7482, "cache_read": 7480, "cache_create": 0, "cost_usd": 0.000792, "result": "ok"}
+{"variant": "V6-bare", "attempt": 1, "context": 0, "cache_read": 0, "cache_create": 0, "cost_usd": 0, "result": "Not logged in \u00b7 Please run /login"}
+{"variant": "V6-bare", "attempt": 2, "context": 0, "cache_read": 0, "cache_create": 0, "cost_usd": 0, "result": "Not logged in \u00b7 Please run /login"}
+{"variant": "V7-safe-mode", "attempt": 1, "context": 16254, "cache_read": 11092, "cache_create": 5160, "cost_usd": 0.0217932, "result": "ok"}
+{"variant": "V7-safe-mode", "attempt": 2, "context": 16254, "cache_read": 16252, "cache_create": 0, "cost_usd": 0.0016692, "result": "ok"}
+{"variant": "V8-floor-custom-system-prompt", "attempt": 1, "context": 5757, "cache_read": 0, "cache_create": 5755, "cost_usd": 0.023063999999999998, "result": "ok"}
+{"variant": "V8-floor-custom-system-prompt", "attempt": 2, "context": 5757, "cache_read": 5755, "cache_create": 0, "cost_usd": 0.0006194999999999999, "result": "ok"}

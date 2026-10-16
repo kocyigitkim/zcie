@@ -1,0 +1,1 @@
+{ "permissions": { "deny": ["CronCreate","CronDelete","CronList","DesignSync","EnterWorktree","ExitWorktree","LSP","ListAgents","Monitor","NotebookEdit","PushNotification","RemoteTrigger","ReportFindings","ScheduleWakeup","SendMessage","Task","TaskStop","WebFetch","WebSearch","Workflow","Skill"] } }
