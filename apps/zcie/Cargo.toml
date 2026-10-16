@@ -1,0 +1,21 @@
+[package]
+name = "zcie"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "zcie"
+path = "src/main.rs"
+
+[dependencies]
+zcie-types.workspace = true
+zcie-sdk.workspace = true
+zcie-security.workspace = true
+clap.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true
