@@ -1,0 +1,22 @@
+/target/
+**/*.rs.bk
+.DS_Store
+# Runtime data is never committed
+.zcie/
+*.sock
+*.pid
+*.lock.tmp
+# SDK build outputs
+sdk/typescript/node_modules/
+sdk/typescript/dist/
+sdk/python/**/__pycache__/
+sdk/python/dist/
+*.sst
+*.log
+.env
+.env.*
+
+# Claude Code local settings (paths and keys of one user)
+.claude/settings.local.json
+.claude/settings.local.json.zcie-backup
+.claude/zcie-setup.json

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ZCIE engine.toml",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "server": { "type": "object", "additionalProperties": false, "properties": {
+      "http_addr": { "type": "string" }, "allow_remote": { "type": "boolean" }, "api_key_env": { "type": "string" } } },
+    "storage": { "type": "object", "additionalProperties": false, "properties": {
+      "data_dir": { "type": "string" }, "sync_writes": { "type": "boolean" } } },
+    "ingest": { "type": "object", "additionalProperties": false, "properties": {
+      "max_payload_bytes": { "type": "integer", "minimum": 1 }, "queue_capacity": { "type": "integer", "minimum": 1 },
+      "worker_count": { "type": "integer", "minimum": 1 }, "debounce_ms": { "type": "integer", "minimum": 0 } } },
+    "index": { "type": "object", "additionalProperties": false, "properties": {
+      "max_file_bytes": { "type": "integer", "minimum": 1 },
+      "languages": { "type": "array", "items": { "enum": ["rust", "typescript", "python"] } } } },
+    "query": { "type": "object", "additionalProperties": false, "properties": {
+      "default_token_budget": { "type": "integer", "minimum": 50 }, "max_token_budget": { "type": "integer", "minimum": 50 },
+      "max_results": { "type": "integer", "minimum": 1 }, "graph_max_depth": { "type": "integer", "minimum": 1 },
+      "graph_max_fanout": { "type": "integer", "minimum": 1 } } },
+    "cache": { "type": "object", "additionalProperties": false, "properties": {
+      "l0_capacity_entries": { "type": "integer", "minimum": 1 }, "negative_ttl_ms": { "type": "integer", "minimum": 0 } } },
+    "security": { "type": "object", "additionalProperties": false, "properties": {
+      "redact_secrets": { "type": "boolean" }, "exclude_globs": { "type": "array", "items": { "type": "string" } } } },
+    "capture": { "type": "object", "additionalProperties": false, "properties": {
+      "assistant_messages": { "type": "boolean" }, "command_output_max_bytes": { "type": "integer", "minimum": 1 } } }
+  }
+}

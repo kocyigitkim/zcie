@@ -1,0 +1,41 @@
+# ZCIE engine configuration (docs/15-configuration.md).
+# Copy to ~/.zcie/config/engine.toml and change values there.
+# Environment variables ZCIE_<SECTION>_<KEY> override this file (example: ZCIE_QUERY_MAX_RESULTS=12).
+
+[server]
+http_addr = "127.0.0.1:47831"   # HTTP gateway address (loopback only by default)
+allow_remote = false            # true permits a non-loopback http_addr (use TLS through a reverse proxy)
+api_key_env = "ZCIE_API_KEY"    # environment variable with a development admin key
+
+[storage]
+data_dir = "~/.zcie/instances/local"  # instance folder; the default follows --home
+sync_writes = true                    # fsync capture batches before the receipt
+
+[ingest]
+max_payload_bytes = 1048576   # larger payloads get HTTP 413
+queue_capacity = 10000        # in-memory job queue size
+worker_count = 4              # background worker threads
+debounce_ms = 200             # file watcher debounce
+
+[index]
+max_file_bytes = 1048576                      # larger files get metadata and hash only
+languages = ["rust", "typescript", "python"]  # languages for symbol extraction
+
+[query]
+default_token_budget = 250
+max_token_budget = 4000
+max_results = 8
+graph_max_depth = 3
+graph_max_fanout = 50
+
+[cache]
+l0_capacity_entries = 10000
+negative_ttl_ms = 2000
+
+[security]
+redact_secrets = true
+exclude_globs = [".env", ".env.*", "*.pem", "*.key", "id_rsa*"]  # added to the built-in defaults
+
+[capture]
+assistant_messages = false        # assistant.message events get HTTP 403 when false
+command_output_max_bytes = 65536  # command, tool and test output is truncated to this size

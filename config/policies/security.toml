@@ -1,0 +1,4 @@
+# OPTIONAL extra secret patterns (milestone 1 uses the built-in rules R-01 to R-08 in docs/11-security.md).
+# [[pattern]]
+# id = "X-01"
+# regex = "\\bmycorp_[0-9a-f]{32}\\b"

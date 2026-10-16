@@ -1,0 +1,4 @@
+# OPTIONAL per-workspace capture policy (milestone 1 reads engine.toml [capture] only).
+# [workspace.atheron]
+# reject_event_types = ["tool.result"]   # event types that the daemon refuses for this workspace
+# assistant_messages = false             # override of capture.assistant_messages

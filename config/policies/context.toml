@@ -1,0 +1,4 @@
+# OPTIONAL per-client token budget overrides (milestone 1 uses engine.toml [query] only).
+# [client.claude-code]
+# default_token_budget = 300
+# max_token_budget = 2000

@@ -1,0 +1,4 @@
+# OPTIONAL per-repository indexing policy (milestone 1 reads engine.toml [index] and [security] only).
+# [repository."/path/to/repo"]
+# exclude_globs = ["dist/**", "*.min.js"]   # extra exclusions
+# generated = ["**/*.generated.ts"]         # files to index as metadata only
