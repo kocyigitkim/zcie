@@ -1,0 +1,37 @@
+#!/bin/sh
+# ZCIE post-commit hook: send git.commit to the daemon.
+# Rule: never block or fail the commit. Every path ends with exit 0.
+
+ZCIE_URL="${ZCIE_URL:-http://127.0.0.1:47831}"
+# Key: ZCIE_API_KEY, or git config zcie.apiKeyFile, or ZCIE_API_KEY_FILE.
+key_file="$(git config zcie.apiKeyFile 2>/dev/null || printf '%s' "${ZCIE_API_KEY_FILE:-}")"
+if [ -z "${ZCIE_API_KEY:-}" ] && [ -n "$key_file" ] && [ -r "$key_file" ]; then
+    ZCIE_API_KEY="$(head -n 1 "$key_file" | tr -d '[:space:]')"
+fi
+command -v jq >/dev/null 2>&1 || exit 0
+command -v curl >/dev/null 2>&1 || exit 0
+
+sha="$(git rev-parse HEAD 2>/dev/null)" || exit 0
+top="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+repo_name="$(basename "$top")"
+top_hash="$(printf '%s' "$top" | shasum -a 256 2>/dev/null | cut -c1-16)"
+repository_id="$(git config --get zcie.repositoryId 2>/dev/null)"
+workspace="${ZCIE_WORKSPACE:-$(git config --get zcie.workspace 2>/dev/null)}"
+[ -n "$workspace" ] || workspace="$repo_name"
+
+payload="$(jq -n --arg sha "$sha" '{sha: $sha}' 2>/dev/null)" || exit 0
+body="$(jq -n \
+    --arg key "git:${top_hash}:${sha}" \
+    --arg workspace "$workspace" \
+    --arg session "$repo_name" \
+    --arg payload "$payload" \
+    --arg repo "$repository_id" \
+    '{schema: "zcie.event.v1", idempotency_key: $key, workspace: $workspace,
+      source: {app: "git", session_id: $session}, type: "git.commit", payload: $payload}
+     + (if $repo == "" then {} else {repository_id: $repo} end)' 2>/dev/null)" || exit 0
+
+curl --max-time 2 --silent --output /dev/null \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer ${ZCIE_API_KEY:-}" \
+    -X POST --data "$body" "${ZCIE_URL}/v1/events" >/dev/null 2>&1 || true
+exit 0
