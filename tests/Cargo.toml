@@ -58,6 +58,10 @@ name = "weapon_scenario"
 path = "integration/weapon_scenario.rs"
 
 [[test]]
+name = "projects"
+path = "integration/projects.rs"
+
+[[test]]
 name = "multitenancy"
 path = "multitenancy/scope.rs"
 

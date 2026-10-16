@@ -26,7 +26,7 @@ pub use ids::{CommitId, EdgeId, EventId, FileId, JobId, MemoryId, Ref, SymbolId,
 pub use job::{JobKind, JobPriority, JobRecord, JobState};
 pub use memory::{MemoryKind, MemoryRecord, MemoryStatus};
 pub use query::{
-    AnswerKind, ExpandItem, ExpandLevel, ExpandRequest, ExpandResponse, ExpandStatus, Freshness, QueryClass, QueryMode, QueryRequest, QueryResponse, ResultItem, Watermarks};
+    AnswerKind, ExpandItem, ExpandLevel, ExpandRequest, ExpandResponse, ExpandStatus, Freshness, QueryScope, QueryClass, QueryMode, QueryRequest, QueryResponse, ResultItem, Watermarks};
 pub use registry::{ProjectRecord, RepositoryRecord, WorkspaceRecord, WorktreeRecord};
 pub use api::CaptureReceiptValue;
 pub use scope::{LOCAL_TENANT, Scope, now_utc};

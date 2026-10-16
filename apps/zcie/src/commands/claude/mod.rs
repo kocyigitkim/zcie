@@ -42,8 +42,8 @@ pub struct SetupArgs {
     /// Project folder. Default: the current folder.
     #[arg(long)]
     pub dir: Option<PathBuf>,
-    /// ZCIE workspace of the project. Default: the project folder name.
-    #[arg(long = "for-workspace")]
+    /// Project name. Default: the project folder name.
+    #[arg(long = "name", visible_alias = "for-workspace")]
     pub for_workspace: Option<String>,
     /// Tool profile. `auto` (default) keeps automatic tool use; `lean` is the cheapest; `balanced`
     /// keeps web, subagent and skill tools loaded but cost more in the benchmark (cache rewrites).

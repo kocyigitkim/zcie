@@ -49,7 +49,8 @@ Status: Normative.
 | AC-19 | Only one daemon can open the database. | TS-09-06 | PASS | `second_daemon_on_same_home_stops_with_lock_error`. |
 | AC-20 | The benchmark report states the corpus, the hardware, cold and warm cache, the latency distribution and the token counts. | `benchmarks/results/<date>.md` (review) | PASS | Review: `benchmarks/results/2026-10-16.md` (corpus, hardware, cold and warm, p50/p95/p99, tokens). All targets met. |
 | AC-21 | The code obeys the simplicity rules C-01 to C-17. | Review. Use `cargo clippy -- -D warnings` and a line count per function and file. | PASS | Review: `cargo clippy --workspace --all-targets -- -D warnings` clean; scan found no function > 40 lines and no file > 400 lines in production code; no `unsafe`, no `macro_rules!`. |
-| AC-22 | All development tasks are marked done and all test suites pass. | `12-development-plan.md`, `13-test-plan.md` section 8 | PASS | `12-development-plan.md`: 44/44 tasks done. `13-test-plan.md` §8: all suites pass; `cargo test --workspace --no-fail-fast` passed twice (87 tests, 0 failed). |
+| AC-22 | All development tasks are marked done and all test suites pass. | `12-development-plan.md`, `13-test-plan.md` section 8 | PASS | `12-development-plan.md`: 45/45 tasks done. `13-test-plan.md` §8: all suites pass; `cargo test --workspace --no-fail-fast` passed twice (100 tests, 0 failed, with TS-14). |
+| AC-23 | All memory is kept by a project ID in one store. The ID file `.claude/zcie_id` is made automatically. A question from any project folder can read another project, within the key scope. | TS-14-01 to TS-14-11; manual Claude Code session (ADR-009) | PASS | TS-14 (11 tests). Manual: a session in a new folder wrote `.claude/zcie_id`; a session in ZCIEngine answered "Which database does the autoproj ledger use?" in 1 turn with no tool call ("Postgres 16"). |
 
 ## 4. Acceptance record
 
@@ -59,7 +60,7 @@ Fill this section when all criteria are examined.
 |------|-------|
 | Date | 2026-10-16 |
 | Commit SHA | (working tree, not committed yet) |
-| Criteria `PASS` | 22 / 22 |
+| Criteria `PASS` | 23 / 23 |
 | Criteria `FAIL` | 0 |
 | Accepted (yes / no) | yes |
 | Examined by | Claude (implementing agent) |

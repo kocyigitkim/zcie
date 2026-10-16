@@ -64,6 +64,16 @@ impl ServerHandler for ZcieServer {
     }
 }
 
+/// Finds `.claude/zcie_id` in the current folder or a parent folder (ADR-009).
+fn project_of_cwd() -> Option<String> {
+    let start = std::env::current_dir().ok()?;
+    start.ancestors().find_map(|folder| {
+        let text = std::fs::read_to_string(folder.join(".claude").join("zcie_id")).ok()?;
+        let id = text.lines().next()?.trim().to_string();
+        zcie_types::ids::is_project_id(&id).then_some(id)
+    })
+}
+
 /// Returns `ZCIE_API_KEY`, or the first line of the file named by `ZCIE_API_KEY_FILE`.
 fn api_key() -> String {
     let key = env_or("ZCIE_API_KEY", "");
@@ -86,7 +96,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
     let endpoint = env_or("ZCIE_URL", zcie_sdk::DEFAULT_ENDPOINT);
     let api_key = api_key();
-    let workspace = env_or("ZCIE_WORKSPACE", DEFAULT_WORKSPACE);
+    let workspace = std::env::var("ZCIE_WORKSPACE").ok().filter(|v| !v.is_empty()).or_else(project_of_cwd).unwrap_or_else(|| DEFAULT_WORKSPACE.to_string());
     tracing::info!(endpoint = %endpoint, workspace = %workspace, "zcie-mcp starting");
     let service = ZcieServer { endpoint, api_key, workspace }.serve(rmcp::transport::stdio()).await?;
     service.waiting().await?;

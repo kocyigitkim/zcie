@@ -15,6 +15,12 @@ zcie claude remove                     # remove exactly what setup added
 Profiles: `--profile auto` (default: tools load automatically on demand, cost ≤ default), `--profile lean` (cheapest; extra tools must be enabled), `--profile balanced`.
 Options: `--allow WebFetch,Task` (keep tools), `--no-lean`, `--no-inject`, `--no-guards`, `--no-capture`, `--cache-5m`.
 Measured effect: −63 % tokens, −42 % cost, 30/30 correct (see `benchmarks/results/claude-code-ab-2026-10-16.md`).
+
+### 0.1 Project ID (ADR-009)
+`zcie claude setup` writes the project ID into `<project root>/.claude/zcie_id`. Commit this file: a clone gets the same project memory.
+If a folder has no ID file, the SessionStart hook of the first Claude Code session makes the project and writes the file.
+All memory is kept by this ID in the one store `~/.zcie`. A prompt that names another project (for example "how does billing compute tax") also reads that project. `zcie query --global "<question>"` reads all projects.
+`--name <name>` sets the project name (default: the folder name). `zcie project list` shows all projects.
 The sections below describe the manual setup.
 
 The hooks send events to the ZCIE daemon. They use `jq` and `curl`.
@@ -30,7 +36,7 @@ A hook never blocks the session. If the daemon does not run, the hook exits with
 
 ```sh
 export ZCIE_API_KEY="zcie_..."          # the key from step 3
-export ZCIE_WORKSPACE="atheron"         # optional; default is the folder name of the project
+export ZCIE_WORKSPACE="atheron"         # optional override; default is the ID in .claude/zcie_id
 export ZCIE_URL="http://127.0.0.1:47831" # optional
 ```
 
@@ -43,7 +49,7 @@ This repository already has `.mcp.json` and `.claude/settings.json`. Do these st
 
 ```json
 {
-  "env": { "ZCIE_WORKSPACE": "<ws>", "ZCIE_API_KEY_FILE": "/Users/<you>/.zcie/config/claude-code.key" },
+  "env": { "ZCIE_API_KEY_FILE": "/Users/<you>/.zcie/config/claude-code.key" },
   "enabledMcpjsonServers": ["zcie"]
 }
 ```
@@ -87,11 +93,10 @@ Build the binaries: `cargo build --release`. Then add the MCP server:
 claude mcp add zcie \
   -e ZCIE_URL=http://127.0.0.1:47831 \
   -e ZCIE_API_KEY="$ZCIE_API_KEY" \
-  -e ZCIE_WORKSPACE=atheron \
   -- /path/to/ZCIEngine/target/release/zcie-mcp
 ```
 
-The server exposes two tools: `zcie_query` and `zcie_expand`.
+The server exposes two tools: `zcie_query` and `zcie_expand`. It finds the project from `.claude/zcie_id` in its start folder or a parent folder. `zcie_query` takes `scope: "global"` or `project: "<name>"` to read other projects.
 
 ## 4. Events sent
 

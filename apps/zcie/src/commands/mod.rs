@@ -5,6 +5,7 @@ pub mod claude;
 pub mod daemon;
 pub mod data;
 pub mod key;
+pub mod project;
 
 use std::path::PathBuf;
 
@@ -18,7 +19,8 @@ use crate::{Cli, Command};
 pub fn run(cli: Cli) -> anyhow::Result<()> {
     let home = home_dir(&cli)?;
     let key = api_key(&cli, &home);
-    let client = Client::new(&cli.url, &key, &cli.workspace);
+    let project = cli.project.clone().or_else(|| project::find_project_id(&std::env::current_dir().unwrap_or_default()).map(|(_, id)| id)).unwrap_or_else(|| "default".into());
+    let client = Client::new(&cli.url, &key, &project);
     match cli.command {
         Command::Daemon { action } => daemon::run(action, &home, &client),
         Command::Repo { action } => data::run_repo(action, &client),
@@ -30,6 +32,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Health => data::run_health(&client),
         Command::RebuildSearch => print_json(&client.rebuild_search()?),
         Command::Key { action } => key::run(action, &home),
+        Command::Project { action } => project::run(action, &client),
         Command::Claude { action } => claude::run(action, &home, &cli.url),
     }
 }

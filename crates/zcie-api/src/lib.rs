@@ -4,6 +4,8 @@
 pub mod engine;
 pub mod error;
 pub mod forget;
+pub mod multi;
+pub mod projects;
 pub mod read_ops;
 pub mod write_ops;
 

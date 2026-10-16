@@ -15,13 +15,19 @@ use crate::engine::Engine;
 use crate::error::{ApiError, ApiResult};
 
 impl Engine {
-    /// Answers a query (`POST /v1/query`).
+    /// Answers a query (`POST /v1/query`). A global or cross-project query reads each project
+    /// on its own and merges the results (ADR-009).
     pub fn query(&self, auth: &AuthContext, request: QueryRequest) -> ApiResult<QueryResponse> {
         self.require(auth, Permission::Read)?;
-        let workspace = self.resolve_workspace(auth, &request.workspace, false)?;
-        let ctx = self.query_context(auth, &workspace, request.repository_id.clone());
         zcie_telemetry::Counters::inc(&self.ingest.counters.queries);
-        Ok(self.query.run(&ctx, &request)?)
+        let targets = self.query_targets(auth, &request)?;
+        match targets.as_slice() {
+            [one] => {
+                let ctx = self.query_context(auth, one, request.repository_id.clone());
+                Ok(self.query.run(&ctx, &request)?)
+            }
+            _ => crate::multi::query_many(self, auth, &request, &targets),
+        }
     }
 
     /// Expands refs (`POST /v1/expand`).

@@ -13,8 +13,8 @@ use serde_json::{Value, json};
 use zcie_api::{ApiError, ApiResult, Engine};
 use zcie_security::AuthContext;
 use zcie_types::api::{
-    CaptureReceipt, CorrectRequest, ForgetReceipt, HealthReport, JobResponse, LinkResponse, RegisterRepositoryResponse,
-    TimelineResponse,
+    CaptureReceipt, CorrectRequest, ForgetReceipt, HealthReport, JobResponse, LinkResponse, ProjectInfo, ProjectList,
+    RegisterRepositoryResponse, RenameProjectRequest, TimelineResponse,
 };
 use zcie_types::{ExpandResponse, MemoryRecord, QueryResponse, TaskRecord};
 
@@ -41,6 +41,9 @@ pub fn router(engine: Arc<Engine>, max_payload_bytes: usize) -> Router {
         .route("/v1/forget", post(forget))
         .route("/v1/health", get(health))
         .route("/v1/admin/rebuild-search", post(rebuild_search))
+        .route("/v1/projects", get(list_projects).post(ensure_project))
+        .route("/v1/projects/{project}", get(show_project).delete(delete_project))
+        .route("/v1/projects/{project}/rename", post(rename_project))
         .layer(DefaultBodyLimit::max(max_payload_bytes + BODY_OVERHEAD))
         .with_state(engine)
 }
@@ -125,6 +128,32 @@ async fn health(State(engine): Shared, headers: HeaderMap) -> HttpResult<Json<He
 
 async fn rebuild_search(State(engine): Shared, headers: HeaderMap) -> HttpResult<Json<JobResponse>> {
     with_auth(engine, headers, |e, a| e.rebuild_search(a).map(|job_id| JobResponse { job_id })).await
+}
+
+async fn list_projects(State(engine): Shared, headers: HeaderMap) -> HttpResult<Json<ProjectList>> {
+    with_auth(engine, headers, |e, a| e.list_projects(a)).await
+}
+
+async fn ensure_project(State(engine): Shared, headers: HeaderMap, body: Bytes) -> HttpResult<Json<ProjectInfo>> {
+    let request = parse(&body)?;
+    with_auth(engine, headers, move |e, a| e.ensure_project(a, request)).await
+}
+
+async fn show_project(State(engine): Shared, headers: HeaderMap, Path(project): Path<String>) -> HttpResult<Json<ProjectInfo>> {
+    with_auth(engine, headers, move |e, a| {
+        let record = e.list_projects(a)?.projects.into_iter().find(|p| p.project_id == project || p.name == project);
+        record.ok_or_else(|| ApiError::NotFound(format!("project {project}")))
+    })
+    .await
+}
+
+async fn rename_project(State(engine): Shared, headers: HeaderMap, Path(project): Path<String>, body: Bytes) -> HttpResult<Json<ProjectInfo>> {
+    let request: RenameProjectRequest = parse(&body)?;
+    with_auth(engine, headers, move |e, a| e.rename_project(a, &project, &request.name)).await
+}
+
+async fn delete_project(State(engine): Shared, headers: HeaderMap, Path(project): Path<String>) -> HttpResult<Json<ProjectInfo>> {
+    with_auth(engine, headers, move |e, a| e.delete_project(a, &project)).await
 }
 
 /// Body of the root route, for humans.

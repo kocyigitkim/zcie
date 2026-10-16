@@ -12,8 +12,8 @@ use serde::de::DeserializeOwned;
 use zcie_types::MemoryRecord;
 use zcie_types::api::{
     CaptureReceipt, CaptureRequest, CorrectRequest, CreateTaskRequest, ErrorBody, ForgetReceipt,
-    ForgetRequest, HealthReport, JobResponse, LinkRequest, LinkResponse, RegisterRepositoryRequest,
-    RegisterRepositoryResponse, TimelineResponse,
+    EnsureProjectRequest, ForgetRequest, HealthReport, JobResponse, LinkRequest, LinkResponse, ProjectInfo, ProjectList,
+    RegisterRepositoryRequest, RegisterRepositoryResponse, RenameProjectRequest, TimelineResponse,
 };
 use zcie_types::query::{ExpandLevel, ExpandRequest, ExpandResponse, QueryRequest, QueryResponse};
 use zcie_types::task::TaskRecord;
@@ -155,6 +155,33 @@ impl Client {
     /// Starts a rebuild of the search index.
     pub fn rebuild_search(&self) -> Result<JobResponse> {
         self.post("/v1/admin/rebuild-search", &serde_json::json!({}))
+    }
+
+    /// Finds or makes a project and registers its root folder.
+    pub fn ensure_project(&self, request: &EnsureProjectRequest) -> Result<ProjectInfo> {
+        self.post("/v1/projects", request)
+    }
+
+    /// Lists all permitted projects.
+    pub fn list_projects(&self) -> Result<ProjectList> {
+        self.get("/v1/projects")
+    }
+
+    /// Reads one project by ID or name.
+    pub fn project(&self, id_or_name: &str) -> Result<ProjectInfo> {
+        self.get(&format!("/v1/projects/{}", encode_path_part(id_or_name)))
+    }
+
+    /// Renames a project.
+    pub fn rename_project(&self, id_or_name: &str, name: &str) -> Result<ProjectInfo> {
+        let body = RenameProjectRequest { name: name.to_string() };
+        self.post(&format!("/v1/projects/{}/rename", encode_path_part(id_or_name)), &body)
+    }
+
+    /// Forgets all memory of a project and removes it (admin key).
+    pub fn delete_project(&self, id_or_name: &str) -> Result<ProjectInfo> {
+        let builder = self.http.delete(format!("{}/v1/projects/{}", self.endpoint, encode_path_part(id_or_name)));
+        self.send(builder)
     }
 
     fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {

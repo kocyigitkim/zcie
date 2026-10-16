@@ -33,6 +33,13 @@ impl Watchers {
     pub fn attach(self: &Arc<Self>, engine: &Engine) {
         let me = Arc::clone(self);
         engine.set_worktree_hook(Box::new(move |worktree| me.start(worktree)));
+        let me = Arc::clone(self);
+        engine.set_worktree_removed_hook(Box::new(move |worktree| me.stop(&worktree.worktree_id)));
+    }
+
+    /// Stops the watcher of one worktree.
+    pub fn stop(&self, worktree_id: &str) {
+        self.running.lock().unwrap_or_else(|e| e.into_inner()).remove(worktree_id);
     }
 
     /// Starts watchers for all worktrees and makes one reconciliation scan for each (recovery step 11).

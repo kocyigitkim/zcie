@@ -42,24 +42,38 @@ export PATH="$PWD/target/release:$PATH"
    zcie health
    ```
 
-3. Register a repository in a workspace:
+3. Make a project for a repository (ADR-009):
 
    ```sh
-   zcie --workspace myproject repo add /path/to/repo
+   cd /path/to/repo && zcie project init
    ```
 
-   The daemon scans the repository, parses Rust, TypeScript and Python files, indexes the last 200 commits and
-   starts a file watcher.
+   The command writes the project ID into `.claude/zcie_id`. Commit this file. The daemon scans the repository,
+   parses Rust, TypeScript and Python files, indexes the last 200 commits and starts a file watcher.
+   A Claude Code session with the ZCIE hooks does this step itself in a folder that has no ID file.
 
-4. Ask questions:
+4. Ask questions. In a project folder (or a subfolder) the CLI finds the project itself:
 
    ```sh
-   zcie --workspace myproject query "where is parse_config defined"
-   zcie --workspace myproject query "which commit implemented #42"
-   zcie --workspace myproject expand sym:sym_01... --level source
+   zcie query "where is parse_config defined"
+   zcie query "which commit implemented #42"
+   zcie query --global "which projects use Postgres"     # all projects on this computer
+   zcie --project billing query "where is the invoice total"   # another project by name
+   zcie expand sym:sym_01... --level source
    ```
 
-5. Stop the daemon:
+   A question that names another project (for example "how does billing compute tax") also reads that project.
+   The results show the project name in the field `project`.
+
+5. Manage the projects:
+
+   ```sh
+   zcie project list
+   zcie project rename billing billing-v2   # the ID does not change
+   zcie project migrate                     # write missing ID files of registered roots
+   ```
+
+6. Stop the daemon:
 
    ```sh
    zcie daemon stop
@@ -87,8 +101,10 @@ See `adapters/claude-code/install.md`. The manual steps below are an alternative
 1. Add the MCP gateway (two tools: `zcie_query`, `zcie_expand`):
 
    ```sh
-   claude mcp add zcie -e ZCIE_API_KEY=<key> -e ZCIE_WORKSPACE=myproject -- zcie-mcp
+   claude mcp add zcie -e ZCIE_API_KEY_FILE=$HOME/.zcie/config/claude-code.key -- zcie-mcp
    ```
+
+   The gateway finds the project from `.claude/zcie_id`. Set `ZCIE_WORKSPACE` only to force another project.
 
 2. Add the capture hooks. See `adapters/claude-code/install.md`. The hooks never block Claude Code: if the daemon
    does not run, they exit with code 0.

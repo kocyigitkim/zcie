@@ -303,6 +303,12 @@ pub mod prefix {
     pub const QUERY: &str = "q_";
 }
 
+/// Returns true for a project ID: `proj_<ULID>`, or `ws_<ULID>` of projects made before project IDs.
+pub fn is_project_id(value: &str) -> bool {
+    let rest = value.strip_prefix(prefix::PROJECT).or_else(|| value.strip_prefix(prefix::WORKSPACE));
+    rest.is_some_and(|r| r.len() == 26 && r.chars().all(|c| c.is_ascii_alphanumeric()))
+}
+
 /// The permitted ref kinds (`docs/08-memory-and-graph.md` section 2).
 pub const REF_KINDS: [&str; 6] = ["ev", "file", "sym", "mem", "task", "commit"];
 

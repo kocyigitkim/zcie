@@ -24,6 +24,23 @@ pub struct QueryRequest {
     /// Continuation from an earlier response.
     #[serde(default)]
     pub cursor: Option<String>,
+    /// `project` (default): the project in `workspace`. `global`: all permitted projects.
+    #[serde(default)]
+    pub scope: QueryScope,
+    /// Also query other registered projects whose name appears in the question.
+    #[serde(default)]
+    pub cross_project: bool,
+}
+
+/// Which projects a query reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QueryScope {
+    /// One project.
+    #[default]
+    Project,
+    /// All projects that the API key permits.
+    Global,
 }
 
 /// Query mode.
@@ -144,6 +161,9 @@ pub struct ResultItem {
     pub score: f32,
     /// Snippet (level L1 and higher).
     pub snippet: Option<String>,
+    /// Project name, set when a query reads more than one project.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project: Option<String>,
 }
 
 /// Freshness label of a response.

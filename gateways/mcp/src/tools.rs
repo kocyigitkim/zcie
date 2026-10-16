@@ -12,7 +12,7 @@ pub const QUERY_TOOL: &str = "zcie_query";
 /// Name of the expand tool.
 pub const EXPAND_TOOL: &str = "zcie_expand";
 
-const QUERY_DESCRIPTION: &str = "Search project code, symbols, tasks, commits and past conversations in the ZCIE memory (local index, verified links). Returns cited refs, a short answer when the data is exact, and the source code of the best matching symbols. Usually no file read is needed after this call. Use zcie_expand only for more source or history.";
+const QUERY_DESCRIPTION: &str = "Search project code, symbols, tasks, commits and past conversations in the ZCIE memory (local index of all projects on this computer, verified links). Default: the current project; scope=global or project=<name> reads other projects. Returns cited refs, a short answer when the data is exact, and the source code of the best matching symbols. Usually no file read is needed after this call. Use zcie_expand only for more source or history.";
 const EXPAND_DESCRIPTION: &str = "Expand ZCIE refs into evidence, source code or original records under a token budget.";
 
 /// Returns the definitions of the two tools.
@@ -37,7 +37,9 @@ fn query_schema() -> Value {
             "question": { "type": "string", "description": "Question, symbol name or ref." },
             "mode": { "type": "string", "enum": ["auto", "exact", "search", "timeline", "memory"] },
             "token_budget": { "type": "integer", "minimum": 50, "maximum": 4000 },
-            "include_source": { "type": "boolean", "description": "Add the source of the best symbols (default true)." }
+            "include_source": { "type": "boolean", "description": "Add the source of the best symbols (default true)." },
+            "scope": { "type": "string", "enum": ["project", "global"], "description": "project (default): this project; global: all projects on this computer." },
+            "project": { "type": "string", "description": "Another project by name or ID (default: the current project)." }
         },
         "required": ["question"]
     })
@@ -75,8 +77,15 @@ fn run_query(client: &Client, arguments: &JsonObject) -> Result<Value, String> {
         None => QueryMode::Auto,
     };
     let total = budget(arguments).unwrap_or(DEFAULT_QUERY_BUDGET);
+    let scope = match arguments.get("scope").and_then(Value::as_str) {
+        Some("global") => zcie_types::QueryScope::Global,
+        _ => zcie_types::QueryScope::Project,
+    };
+    let project = arguments.get("project").and_then(Value::as_str).unwrap_or(client.workspace());
     let request = QueryRequest {
-        workspace: client.workspace().to_string(),
+        workspace: project.to_string(),
+        scope,
+        cross_project: true,
         question: question.to_string(),
         mode,
         token_budget: Some((total / 2).max(MIN_PART_BUDGET)),

@@ -15,6 +15,7 @@ zcie-graph.workspace = true
 zcie-memory.workspace = true
 zcie-search.workspace = true
 zcie-cache.workspace = true
+zcie-context.workspace = true
 zcie-ingest.workspace = true
 zcie-query.workspace = true
 serde.workspace = true

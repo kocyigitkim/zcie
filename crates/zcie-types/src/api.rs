@@ -258,3 +258,44 @@ pub struct CaptureReceiptValue {
     /// The event sequence.
     pub seq: u64,
 }
+
+/// Request to find or make a project (`POST /v1/projects`).
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct EnsureProjectRequest {
+    /// Project ID from `.claude/zcie_id`. A new ID is made if it is missing.
+    #[serde(default)]
+    pub project_id: Option<String>,
+    /// Project name (usually the folder name). Used when the project is new.
+    #[serde(default)]
+    pub name: Option<String>,
+    /// Project root folder to register and index.
+    #[serde(default)]
+    pub root: Option<String>,
+}
+
+/// One project.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectInfo {
+    /// Project ID (`proj_...`; older projects keep `ws_...`).
+    pub project_id: String,
+    /// Project name.
+    pub name: String,
+    /// Registered root folders.
+    pub roots: Vec<String>,
+    /// RFC 3339 creation time.
+    pub created_utc: String,
+}
+
+/// Project list (`GET /v1/projects`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectList {
+    /// The projects.
+    pub projects: Vec<ProjectInfo>,
+}
+
+/// Request to rename a project.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RenameProjectRequest {
+    /// The new name.
+    pub name: String,
+}

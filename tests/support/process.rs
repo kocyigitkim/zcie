@@ -159,10 +159,23 @@ impl Drop for DaemonProcess {
 
 /// Sends JSON-RPC lines to `zcie-mcp` and returns the responses with an `id`.
 pub fn mcp_session(daemon: &DaemonProcess, workspace: &str, calls: &[Value]) -> Vec<Value> {
-    let mut child = Command::new(binary("zcie-mcp"))
+    let mut command = Command::new(binary("zcie-mcp"));
+    command.env("ZCIE_WORKSPACE", workspace);
+    mcp_run(daemon, command, calls)
+}
+
+/// Like `mcp_session`, but `zcie-mcp` runs in `dir` with no `ZCIE_WORKSPACE`, so it finds the
+/// project from `.claude/zcie_id` (ADR-009).
+pub fn mcp_session_in(daemon: &DaemonProcess, dir: &Path, calls: &[Value]) -> Vec<Value> {
+    let mut command = Command::new(binary("zcie-mcp"));
+    command.current_dir(dir).env_remove("ZCIE_WORKSPACE");
+    mcp_run(daemon, command, calls)
+}
+
+fn mcp_run(daemon: &DaemonProcess, mut command: Command, calls: &[Value]) -> Vec<Value> {
+    let mut child = command
         .env("ZCIE_URL", daemon.url())
         .env("ZCIE_API_KEY", daemon.admin_key())
-        .env("ZCIE_WORKSPACE", workspace)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())

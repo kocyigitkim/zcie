@@ -40,6 +40,7 @@ fn item(entity_ref: String, kind: &str, title: String) -> ResultItem {
         revision: None,
         score: 0.0,
         snippet: None,
+        project: None,
     }
 }
 

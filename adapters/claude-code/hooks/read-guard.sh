@@ -21,7 +21,8 @@ lines="$(wc -l < "$file" 2>/dev/null | tr -d ' ')"
 
 cwd="$(zcie_field '.cwd')"
 rel="${file#"$cwd"/}"
-body="$(jq -n --arg w "$(zcie_workspace)" --arg q "$rel" \
+project="$(zcie_project_id)"
+body="$(jq -n --arg w "$project" --arg q "$rel" \
     '{workspace: $w, question: $q, mode: "search", token_budget: 2000, max_results: 40}' 2>/dev/null)"
 outline="$(curl --max-time 2 --silent -H "Content-Type: application/json" \
     -H "Authorization: Bearer ${ZCIE_API_KEY:-}" -X POST --data "$body" "${ZCIE_URL}/v1/query" 2>/dev/null \

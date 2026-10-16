@@ -28,6 +28,7 @@ Rules:
 - Check the prefix when you parse an ID. Return an error if the prefix is wrong.
 - A ref (glossary) uses the form `<kind>:<id>`. Example: `sym:sym_01JAB3...`.
 - The workspace has a human name too. Example: `atheron`. The registry maps the name to the `ws_` ID.
+- A project (ADR-009) is a workspace record. Its workspace ID is the project ID. New projects get a `proj_` ID; old `ws_` IDs stay valid as project IDs. The file `<project root>/.claude/zcie_id` holds the project ID (one line). All memory of a project is under its ID.
 
 ## 2. Scope
 

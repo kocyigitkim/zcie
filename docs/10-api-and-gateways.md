@@ -78,6 +78,11 @@ Base address: `server.http_addr` (default `127.0.0.1:47831`). All bodies are JSO
 | `POST` | `/v1/forget` | `ForgetRequest` | `ForgetReceipt` |
 | `GET` | `/v1/health` | — | `HealthReport` (liveness only without a key) |
 | `POST` | `/v1/admin/rebuild-search` | — | `{ "job_id": "job_..." }` |
+| `POST` | `/v1/projects` | `EnsureProjectRequest` | `ProjectInfo` (ADR-009) |
+| `GET` | `/v1/projects` | — | `ProjectList` |
+| `GET` | `/v1/projects/{id or name}` | — | `ProjectInfo` |
+| `POST` | `/v1/projects/{id or name}/rename` | `RenameProjectRequest` | `ProjectInfo` |
+| `DELETE` | `/v1/projects/{id or name}` | — | `ProjectInfo` (admin key) |
 
 URL-encode a ref in a path (`:` becomes `%3A`).
 
@@ -144,13 +149,14 @@ URL-encode a ref in a path (`:` becomes `%3A`).
 ## 4. MCP gateway (`zcie-mcp`)
 
 - Binary in `gateways/mcp`. Transport: stdio. Use the `rmcp` crate.
-- Configuration from environment: `ZCIE_URL` (default `http://127.0.0.1:47831`), `ZCIE_API_KEY`, `ZCIE_WORKSPACE`.
+- Configuration from environment: `ZCIE_URL` (default `http://127.0.0.1:47831`), `ZCIE_API_KEY` or `ZCIE_API_KEY_FILE`, `ZCIE_WORKSPACE` (optional override).
+- Project: `ZCIE_WORKSPACE` if set. Else the first `.claude/zcie_id` in the current folder or a parent folder (ADR-009). Else `default`.
 - Expose exactly two tools. Do not expose capture, link or forget tools.
 - Streamable HTTP transport is OPTIONAL. It is not in milestone 1.
 
 ### 4.1 Tool `zcie_query`
 
-Description (send this text exactly): `Search project code, symbols, tasks and past conversations in the ZCIE memory. Returns small cited references. Use zcie_expand to read source.`
+Description: the constant `QUERY_DESCRIPTION` in `gateways/mcp/src/tools.rs`. It tells the model that the index holds all projects on this computer and that `scope=global` or `project=<name>` reads other projects.
 
 ```json
 {
@@ -158,7 +164,10 @@ Description (send this text exactly): `Search project code, symbols, tasks and p
   "properties": {
     "question": { "type": "string", "description": "Question, symbol name or ref." },
     "mode": { "type": "string", "enum": ["auto", "exact", "search", "timeline", "memory"] },
-    "token_budget": { "type": "integer", "minimum": 50, "maximum": 4000 }
+    "token_budget": { "type": "integer", "minimum": 50, "maximum": 4000 },
+    "include_source": { "type": "boolean" },
+    "scope": { "type": "string", "enum": ["project", "global"] },
+    "project": { "type": "string", "description": "Another project by name or ID." }
   },
   "required": ["question"]
 }
@@ -192,7 +201,10 @@ Use `clap` with derive. All commands except `daemon start` call the HTTP API.
 | `zcie daemon stop` | Read `run/zcied.pid`. Send `SIGTERM`. |
 | `zcie daemon status` | Call `GET /v1/health`. |
 | `zcie repo add <path> --workspace <name>` | `POST /v1/repositories`. |
-| `zcie query "<question>" [--mode <m>] [--budget <n>]` | `POST /v1/query`. Print JSON. |
+| `zcie query "<question>" [--mode <m>] [--budget <n>] [--global]` | `POST /v1/query` with `cross_project: true`. `--global` reads all projects. Print JSON. |
+| `zcie project init [--dir <d>] [--name <n>]` | `POST /v1/projects`. Write `<root>/.claude/zcie_id`. |
+| `zcie project list \| show [p] \| rename <p> <name> \| delete <p>` | Project management (ADR-009). |
+| `zcie project migrate` | Write `.claude/zcie_id` into each registered root that has none. |
 | `zcie expand <ref>... [--level <l>]` | `POST /v1/expand`. |
 | `zcie capture --type <t> --session <s> [--turn <t>] <text or ->` | `POST /v1/events`. `-` reads stdin. |
 | `zcie link <from> <relation> <to> --confirm` | `POST /v1/links` with `user_confirmation`. |
@@ -201,7 +213,7 @@ Use `clap` with derive. All commands except `daemon start` call the HTTP API.
 | `zcie rebuild-search` | `POST /v1/admin/rebuild-search`. |
 | `zcie key create --name <client>` | Make a new API key. Print it one time. Store the hash in `clients.toml`. Runs locally, no daemon needed. |
 
-Global options: `--url`, `--workspace` (or `ZCIE_WORKSPACE`), `--key` (or `ZCIE_API_KEY`).
+Global options: `--url`, `--project` (alias `--workspace`, or `ZCIE_WORKSPACE`), `--key` (or `ZCIE_API_KEY`). Without `--project`, the CLI reads `.claude/zcie_id` in the current folder or a parent folder.
 
 ## 6. SDKs
 

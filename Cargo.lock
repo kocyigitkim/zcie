@@ -2961,6 +2961,7 @@ dependencies = [
  "thiserror",
  "tracing",
  "zcie-cache",
+ "zcie-context",
  "zcie-git",
  "zcie-graph",
  "zcie-ingest",

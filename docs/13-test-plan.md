@@ -227,6 +227,24 @@ This suite checks the first milestone definition in `docs/README.md` section 4.1
 | TS-12-05 | The path can be traversed from the commit back to the user message. |
 | TS-12-06 | No language model is called. |
 
+### TS-14 — Projects and central memory (ADR-009)
+
+File: `tests/integration/projects.rs`.
+
+| ID | Test | Expected result |
+|----|------|-----------------|
+| TS-14-01 | `ensure_project` with no ID, with a known ID, with an unknown valid ID, with a bad ID. | One `proj_` ID; the same ID again; the given ID is kept; an error. |
+| TS-14-02 | Project query in project A. Memory exists in A and B. | Results of A only. |
+| TS-14-03 | Global query. | Results of A and B, each with a `project` label. No cursor. |
+| TS-14-04 | Query in A that names B. | The first result is from B. The note says 2 projects. |
+| TS-14-05 | Global query with a key for A only. | No result of B. `list_projects` returns A only. |
+| TS-14-06 | Rename A. | The ID does not change. The old name is not found. Names stay unique. The memory stays. |
+| TS-14-07 | Delete B with a non-admin key, then with the admin key. | Forbidden; then B is not listed and its memory is not returned. |
+| TS-14-08 | `names_project` with whole words, a Turkish suffix, a substring and a short name. | Only whole words of 3 or more characters match. |
+| TS-14-09 | Run `session-start.sh` in a subfolder of a new Git repository, two times; then in the home folder. | One ID file in the Git root; the same ID after the second run; no ID file in the home folder. |
+| TS-14-10 | `zcie project init` from a subfolder; `zcie project show`; remove the ID file; `zcie project migrate`. | The ID file is in the Git root; show finds the project; migrate writes the same ID again. |
+| TS-14-11 | `zcie-mcp` started in a project subfolder with no `ZCIE_WORKSPACE`. Call `zcie_query`, then with `scope: global`. | The first result has only the current project; the global result has both projects. |
+
 ## 6. Token regression
 
 Put these tests in `tests/token-regression/`.
@@ -276,6 +294,7 @@ Fill this table during the test phase.
 | TS-10 | 4 | 4 | 0 | — | 2026-10-16 |
 | TS-11 | 7 | 7 | 0 | 0 | 2026-10-16 |
 | TS-12 | 1 (6 checks) | 1 | 0 | 0 | 2026-10-16 |
+| TS-14 | 11 | 11 | 0 | 0 | 2026-10-16 |
 | TK | 2 (1 test fn) | 2 | 0 | — | 2026-10-16 |
 
 ## 9. Exit conditions

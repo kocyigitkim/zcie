@@ -49,7 +49,7 @@ pub fn setup(args: &SetupArgs, home: &Path, url: &str) -> anyhow::Result<()> {
     let mut config = settings::read(&target.settings_file)?;
     let mut manifest = load_manifest(&target.manifest_file);
     manifest.settings_file = target.settings_file.display().to_string();
-    apply(&mut config, &mut manifest, args, &hook_dir, &key_file, &workspace, url);
+    apply(&mut config, &mut manifest, args, &hook_dir, &key_file, url);
     if args.dry_run {
         println!("{}", serde_json::to_string_pretty(&config)?);
         println!("(dry run: nothing was written)");
@@ -59,22 +59,13 @@ pub fn setup(args: &SetupArgs, home: &Path, url: &str) -> anyhow::Result<()> {
     ensure_key(home, &key_file, &workspace)?;
     settings::write(&target.settings_file, &config)?;
     std::fs::write(&target.manifest_file, serde_json::to_string_pretty(&manifest)?)?;
-    let registered = if args.no_register { None } else { register(url, &key_file, &workspace, &target.project) };
+    let registered = if args.no_register || args.scope == Scope::User { None } else { register(url, &key_file, &workspace, &target.project) };
     report(args, &target, &workspace, &manifest, registered);
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-fn apply(
-    config: &mut serde_json::Value,
-    manifest: &mut Manifest,
-    args: &SetupArgs,
-    hook_dir: &Path,
-    key_file: &Path,
-    workspace: &str,
-    url: &str,
-) {
-    let env = env_values(args, &manifest.settings_file, key_file, workspace, url);
+fn apply(config: &mut serde_json::Value, manifest: &mut Manifest, args: &SetupArgs, hook_dir: &Path, key_file: &Path, url: &str) {
+    let env = env_values(args, &manifest.settings_file, key_file, url);
     settings::remove(config, &Manifest { env_keys: manifest.env_keys.clone(), ..Manifest::default() });
     manifest.env_keys.clear();
     settings::add_env(config, &env, manifest);
@@ -97,16 +88,13 @@ fn apply(
 }
 
 /// The env values of the setup.
-fn env_values(args: &SetupArgs, settings_file: &str, key_file: &Path, workspace: &str, url: &str) -> Vec<(&'static str, String)> {
+fn env_values(args: &SetupArgs, settings_file: &str, key_file: &Path, url: &str) -> Vec<(&'static str, String)> {
     let mut env = vec![
         ("ZCIE_API_KEY_FILE", key_file.display().to_string()),
         ("ZCIE_SETTINGS_FILE", settings_file.to_string()),
     ];
     if url != zcie_sdk::DEFAULT_ENDPOINT {
         env.push(("ZCIE_URL", url.to_string()));
-    }
-    if args.scope == Scope::Project {
-        env.push(("ZCIE_WORKSPACE", workspace.to_string()));
     }
     if args.cache_5m {
         env.push(("FORCE_PROMPT_CACHING_5M", "1".to_string()));
@@ -177,20 +165,30 @@ fn reload_daemon(home: &Path) {
     }
 }
 
-/// Registers the project folder in the workspace. Returns a short result text.
-fn register(url: &str, key_file: &Path, workspace: &str, project: &Path) -> Option<String> {
+/// Makes or connects the project of the folder and writes `.claude/zcie_id` (ADR-009).
+/// Returns a short result text.
+fn register(url: &str, key_file: &Path, name: &str, project: &Path) -> Option<String> {
     let key = std::fs::read_to_string(key_file).ok()?.trim().to_string();
-    let client = Client::new(url, &key, workspace);
-    match client.register_repository(&project.display().to_string(), None) {
-        Ok(response) => Some(format!("registered ({}, Git: {})", response.repository_id, response.git_available)),
-        Err(error) => Some(format!("not registered: {error} (start the daemon: zcie daemon start)")),
+    let client = Client::new(url, &key, name);
+    let existing = crate::commands::project::find_project_id(project).map(|(_, id)| id);
+    let request = zcie_types::api::EnsureProjectRequest {
+        project_id: existing,
+        name: Some(name.to_string()),
+        root: Some(project.display().to_string()),
+    };
+    match client.ensure_project(&request) {
+        Ok(info) => match crate::commands::project::write_project_id(project, &info.project_id) {
+            Ok(()) => Some(format!("project {} ({}), id file .claude/zcie_id", info.name, info.project_id)),
+            Err(error) => Some(format!("project {} made, but the id file was not written: {error}", info.project_id)),
+        },
+        Err(error) => Some(format!("not registered: {error} (the first Claude session makes it; or run: zcie daemon start)")),
     }
 }
 
 fn report(args: &SetupArgs, target: &Target, workspace: &str, manifest: &Manifest, registered: Option<String>) {
     println!("ZCIE setup for Claude Code");
     println!("  settings file : {}", target.settings_file.display());
-    println!("  workspace     : {workspace}");
+    println!("  project name  : {workspace}");
     println!("  project       : {} {}", target.project.display(), registered.unwrap_or_default());
     let profile = match args.profile {
         super::Profile::Auto => format!("auto: tools load on demand, {} heavy tools denied (about 27k -> 7k tokens per turn)", settings::AUTO_DENY.len()),

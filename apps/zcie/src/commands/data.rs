@@ -36,6 +36,9 @@ pub struct QueryArgs {
     /// Maximum results.
     #[arg(long)]
     pub max_results: Option<u32>,
+    /// Search all projects.
+    #[arg(long)]
+    pub global: bool,
 }
 
 /// Arguments of `zcie expand`.
@@ -106,6 +109,8 @@ pub fn run_query(args: QueryArgs, client: &Client) -> anyhow::Result<()> {
         mode,
         token_budget: args.budget,
         max_results: args.max_results,
+        scope: if args.global { zcie_types::QueryScope::Global } else { zcie_types::QueryScope::Project },
+        cross_project: true,
         ..QueryRequest::default()
     };
     print_json(&client.query_request(request)?)

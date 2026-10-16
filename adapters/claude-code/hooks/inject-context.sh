@@ -12,9 +12,12 @@ zcie_require_tools
 zcie_read_input
 prompt="$(zcie_field '.prompt')"
 [ -n "$prompt" ] || exit 0
+project="$(zcie_project_id)"
+[ -n "$project" ] || exit 0
 
-body="$(jq -n --arg w "$(zcie_workspace)" --arg q "$(printf '%s' "$prompt" | cut -c1-1900)" \
-    --argjson b "$ZCIE_INJECT_BUDGET" '{workspace: $w, question: $q, token_budget: $b}' 2>/dev/null)" || exit 0
+# cross_project: a question that names another registered project also reads that project.
+body="$(jq -n --arg w "$project" --arg q "$(printf '%s' "$prompt" | cut -c1-1900)" \
+    --argjson b "$ZCIE_INJECT_BUDGET" '{workspace: $w, question: $q, token_budget: $b, cross_project: true}' 2>/dev/null)" || exit 0
 response="$(curl --max-time 2 --silent \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer ${ZCIE_API_KEY:-}" \
@@ -36,10 +39,12 @@ printf '%s' "$response" | jq -r --arg prompt "$prompt" '
         | select(length >= 4 and test("_|[a-z][A-Z]")) | ascii_downcase]
       | any(.[]; . as $name | ($p | contains($name)));
   select(.answer_kind != null and .answer_kind != "not_found" and (.results | length) > 0)
-  | select(.answer != null or (.class | IN("task", "implementation", "timeline", "exact_ref")) or named_symbol)
-  | "ZCIE context (local index of this project and of earlier sessions; refs are cited, statuses are verified/inferred/candidate):",
+  # Results with a project label mean that the prompt names another project (ADR-009).
+  | select(.answer != null or (.class | IN("task", "implementation", "timeline", "exact_ref")) or named_symbol
+        or any(.results[]; .project != null))
+  | "ZCIE context (local index of the projects on this computer and of earlier sessions; refs are cited, statuses are verified/inferred/candidate):",
     (if .answer then "answer: " + .answer else empty end),
-    (.results[:5][] | "- " + .kind + " " + .title
+    (.results[:5][] | "- " + (if .project then "[" + .project + "] " else "" end) + .kind + " " + .title
         + (if .path then " — " + .path + (if .range then ":" + (.range[0]|tostring) + "-" + (.range[1]|tostring) else "" end) else "" end)
         + (if .status then " [" + .status + "]" else "" end)
         + (if .snippet and (.kind == "memory" or .kind == "event") then "\n    full text: " + .snippet else "" end)),

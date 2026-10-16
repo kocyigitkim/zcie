@@ -46,6 +46,7 @@ pub struct Engine {
     pub config: ApiConfig,
     pub(crate) started: Instant,
     pub(crate) worktree_hook: OnceLock<WorktreeHook>,
+    pub(crate) worktree_removed_hook: OnceLock<WorktreeHook>,
 }
 
 /// The parts that `zcie-core` builds for the engine.
@@ -82,12 +83,18 @@ impl Engine {
             config: parts.config,
             started: Instant::now(),
             worktree_hook: OnceLock::new(),
+            worktree_removed_hook: OnceLock::new(),
         }
     }
 
     /// Sets the callback that starts a watcher for a new worktree. Only the first call has an effect.
     pub fn set_worktree_hook(&self, hook: WorktreeHook) {
         let _ = self.worktree_hook.set(hook);
+    }
+
+    /// Sets the callback that stops the watcher of a removed worktree. Only the first call has an effect.
+    pub fn set_worktree_removed_hook(&self, hook: WorktreeHook) {
+        let _ = self.worktree_removed_hook.set(hook);
     }
 
     /// Checks a bearer header and returns the auth context.
@@ -101,7 +108,7 @@ impl Engine {
         *self.clients.write().unwrap_or_else(|e| e.into_inner()) = clients;
     }
 
-    pub(crate) fn tenant(&self) -> &str {
+    pub fn tenant(&self) -> &str {
         &self.config.tenant
     }
 
@@ -125,18 +132,28 @@ impl Engine {
             }
             return Ok(record);
         }
-        if !create || name.starts_with(prefix::WORKSPACE) {
-            return Err(ApiError::NotFound(format!("workspace {name}")));
+        if !create {
+            return Err(ApiError::NotFound(format!("project {name}")));
+        }
+        if zcie_types::ids::is_project_id(name) {
+            // A project ID from a `.claude/zcie_id` file that this computer has not seen yet.
+            if !auth.allows_workspace("*") && !auth.allows_workspace(name) {
+                return Err(ApiError::Forbidden(format!("project {name}")));
+            }
+            return self.create_workspace(auth, name, Some(name));
+        }
+        if name.starts_with(prefix::WORKSPACE) || name.starts_with(prefix::PROJECT) {
+            return Err(ApiError::InvalidRequest(format!("{name} is not a valid project ID")));
         }
         if !auth.allows_workspace(name) {
-            return Err(ApiError::Forbidden(format!("workspace {name}")));
+            return Err(ApiError::Forbidden(format!("project {name}")));
         }
-        self.create_workspace(auth, name)
+        self.create_workspace(auth, name, None)
     }
 
-    fn find_workspace(&self, name_or_id: &str) -> ApiResult<Option<WorkspaceRecord>> {
+    pub(crate) fn find_workspace(&self, name_or_id: &str) -> ApiResult<Option<WorkspaceRecord>> {
         let t = self.tenant();
-        let id = if name_or_id.starts_with(prefix::WORKSPACE) {
+        let id = if zcie_types::ids::is_project_id(name_or_id) {
             name_or_id.to_string()
         } else {
             match self.store.get::<WorkspaceIdValue>(Cf::Lookup, &layout::workspace_name(t, name_or_id))? {
@@ -147,14 +164,18 @@ impl Engine {
         Ok(self.store.get(Cf::Registry, &layout::registry(t, "workspace", &id))?)
     }
 
-    fn create_workspace(&self, auth: &AuthContext, name: &str) -> ApiResult<WorkspaceRecord> {
+    /// Makes a project. `id` is a given project ID; `None` makes a new `proj_` ID.
+    /// A name that another project uses gets a number suffix.
+    pub(crate) fn create_workspace(&self, auth: &AuthContext, name: &str, id: Option<&str>) -> ApiResult<WorkspaceRecord> {
         let _guard = self.ingest_write_guard();
-        if let Some(record) = self.find_workspace(name)? {
+        if let Some(record) = self.find_workspace(id.unwrap_or(name))? {
             return Ok(record);
         }
+        let name = self.unique_name(name)?;
+        let name = name.as_str();
         let record = WorkspaceRecord {
             v: 1,
-            workspace_id: new_id(prefix::WORKSPACE),
+            workspace_id: id.map(str::to_string).unwrap_or_else(|| new_id(prefix::PROJECT)),
             name: name.to_string(),
             principal_id: auth.principal_id.clone(),
             created_utc: now_utc(),
@@ -168,8 +189,19 @@ impl Engine {
         Ok(record)
     }
 
+    fn unique_name(&self, name: &str) -> ApiResult<String> {
+        let t = self.tenant();
+        let mut candidate = name.to_string();
+        let mut index = 2;
+        while self.store.exists(Cf::Lookup, &layout::workspace_name(t, &candidate))? {
+            candidate = format!("{name}-{index}");
+            index += 1;
+        }
+        Ok(candidate)
+    }
+
     /// Serializes registry writes. Uses the workspace lock of this module.
-    fn ingest_write_guard(&self) -> std::sync::MutexGuard<'static, ()> {
+    pub(crate) fn ingest_write_guard(&self) -> std::sync::MutexGuard<'static, ()> {
         static REGISTRY_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
         REGISTRY_LOCK.lock().unwrap_or_else(|e| e.into_inner())
     }

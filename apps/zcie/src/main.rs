@@ -13,9 +13,9 @@ pub struct Cli {
     /// Daemon address.
     #[arg(long, global = true, env = "ZCIE_URL", default_value = zcie_sdk::DEFAULT_ENDPOINT)]
     pub url: String,
-    /// Workspace name.
-    #[arg(long, global = true, env = "ZCIE_WORKSPACE", default_value = "default")]
-    pub workspace: String,
+    /// Project ID or name. Default: the project of the current folder (`.claude/zcie_id`).
+    #[arg(long, visible_alias = "workspace", global = true, env = "ZCIE_WORKSPACE")]
+    pub project: Option<String>,
     /// API key.
     #[arg(long, global = true, env = "ZCIE_API_KEY", default_value = "", hide_env_values = true)]
     pub key: String,
@@ -61,6 +61,12 @@ pub enum Command {
         /// The Claude Code action.
         #[command(subcommand)]
         action: commands::claude::ClaudeAction,
+    },
+    /// Manage projects (central project memory).
+    Project {
+        /// The project action.
+        #[command(subcommand)]
+        action: commands::project::ProjectAction,
     },
     /// Manage API keys.
     Key {

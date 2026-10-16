@@ -765,6 +765,22 @@ When a task says "Set up crate `X`", do these steps:
 - **Done when:**
   - The quickstart uses only commands that exist in the CLI.
 
+### D-045 — Central project memory (ADR-009)
+
+- [x] Done
+- **Goal:** All memory is kept by a project ID in one store. A question from any folder can read any project.
+- **Read:** `docs/adr/ADR-009-central-project-memory.md`.
+- **Files:** `crates/zcie-types/src/{query,api,ids}.rs`, `crates/zcie-api/src/{projects,multi,engine,read_ops}.rs`, `gateways/http`, `gateways/mcp`, `sdk/rust`, `apps/zcie/src/commands/{project,data}.rs`, `apps/zcie/src/commands/claude/setup.rs`, `adapters/claude-code/hooks/{common,session-start,inject-context,read-guard}.sh`.
+- **Steps:**
+  1. Add `scope` and `cross_project` to `QueryRequest` and `project` to `ResultItem`.
+  2. Add the project operations and the `/v1/projects` routes.
+  3. Add the multi-project query: target projects, one query per project, merge rank by rank.
+  4. Find the project from `.claude/zcie_id` in the CLI, the MCP gateway and the hooks. Make the project in the SessionStart hook only.
+  5. Add `zcie project init|list|show|rename|delete|migrate` and `zcie query --global`.
+- **Done when:**
+  - TS-14 passes.
+  - A real Claude Code session in a new folder writes `.claude/zcie_id`, and a session in another project answers a question about it.
+
 ---
 
 ## 7. After the last development task

@@ -177,3 +177,19 @@ The deferred and balanced options put a large block after the varying prompt, so
 - One model, one machine, one day. Two or three repetitions per cell; the variance between repetitions is up to ±20 % per task.
 - Questions only, no editing tasks.
 - The correctness check is a substring match. It gave 2 false positives (T13, condition A, rounds 3 and 4). The corrected accuracy of condition A is 22/28 (round 3) and 33/42 (round 4).
+
+## Round 22 — project ID files (ADR-009), regression check
+
+Same 15 tasks, 2 repetitions, conditions A (default Claude Code) and Z (`zcie claude setup`, auto profile).
+Z finds the project from `.claude/zcie_id` (no `ZCIE_WORKSPACE`). Queries send `cross_project: true`.
+File: `claude-ab/round22-project-id-single.jsonl`.
+
+| Round | Condition | Runs | Correct | Cost (USD) | Tokens/run | Cache writes/run | Turns |
+|-------|-----------|------|---------|-----------|------------|------------------|-------|
+| 20 | A | 30 | 24 | 0.683 | 53,983 | 3,210 | 2.70 |
+| 20 | Z | 30 | 30 | 0.372 | 19,077 | 1,664 | 2.20 |
+| 22 | A | 30 | 22 | 1.009 | 51,729 | 6,144 | 2.57 |
+| 22 | Z | 30 | 30 | 0.517 | 20,114 | 2,889 | 2.20 |
+
+Result: no regression. Z against A in the same round: cost −46 % (round 20) and −49 % (round 22); tokens −65 % and −61 %; 30/30 correct in both rounds.
+The absolute cost of both conditions is higher in round 22 because the prompt cache was cold (cache writes about 2× in both conditions).

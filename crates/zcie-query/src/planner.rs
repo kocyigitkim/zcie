@@ -358,6 +358,16 @@ impl QueryEngine {
         }
     }
 
+    /// Returns the token budget that a request gets.
+    pub fn budget(&self, requested: Option<u32>) -> u32 {
+        clamp_budget(requested, self.config.default_budget, self.config.max_budget)
+    }
+
+    /// Returns the result limit that a request gets.
+    pub fn max_results(&self, requested: Option<u32>) -> usize {
+        requested.map(|m| m as usize).unwrap_or(self.config.max_results).clamp(1, 50)
+    }
+
     /// Returns the maximum edges read from one node.
     pub fn fanout(&self) -> usize {
         self.config.graph_max_fanout
