@@ -1,0 +1,12 @@
+# librocksdb-sys runs bindgen, which needs libclang.
+# macOS default: Command Line Tools. Override with your own LIBCLANG_PATH (Linux: /usr/lib/llvm-*/lib).
+[env]
+LIBCLANG_PATH = { value = "/Library/Developer/CommandLineTools/usr/lib", force = false }
+
+# The bindgen build script loads libclang.dylib at run time. Cargo replaces
+# DYLD_FALLBACK_LIBRARY_PATH for build scripts, so embed an rpath instead.
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-arg=-Wl,-rpath,/Library/Developer/CommandLineTools/usr/lib"]
+
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-arg=-Wl,-rpath,/Library/Developer/CommandLineTools/usr/lib"]

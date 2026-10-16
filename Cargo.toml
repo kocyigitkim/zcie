@@ -1,0 +1,98 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/zcie-types",
+    "crates/zcie-telemetry",
+    "crates/zcie-security",
+    "crates/zcie-store",
+    "crates/zcie-runtime",
+    "crates/zcie-graph",
+    "crates/zcie-symbols",
+    "crates/zcie-memory",
+    "crates/zcie-search",
+    "crates/zcie-cache",
+    "crates/zcie-context",
+    "crates/zcie-ingest",
+    "crates/zcie-query",
+    "crates/zcie-api",
+    "crates/zcie-core",
+    "gateways/http",
+    "apps/zcied",
+    "crates/zcie-fs",
+    "crates/zcie-git",
+    "crates/zcie-parse",
+    "sdk/rust",
+    "apps/zcie",
+    "gateways/mcp",
+    "tests",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "UNLICENSED"
+rust-version = "1.85"
+
+[workspace.dependencies]
+# Internal crates
+zcie-types = { path = "crates/zcie-types" }
+zcie-telemetry = { path = "crates/zcie-telemetry" }
+zcie-security = { path = "crates/zcie-security" }
+zcie-store = { path = "crates/zcie-store" }
+zcie-runtime = { path = "crates/zcie-runtime" }
+zcie-fs = { path = "crates/zcie-fs" }
+zcie-git = { path = "crates/zcie-git" }
+zcie-parse = { path = "crates/zcie-parse" }
+zcie-symbols = { path = "crates/zcie-symbols" }
+zcie-graph = { path = "crates/zcie-graph" }
+zcie-memory = { path = "crates/zcie-memory" }
+zcie-search = { path = "crates/zcie-search" }
+zcie-cache = { path = "crates/zcie-cache" }
+zcie-ingest = { path = "crates/zcie-ingest" }
+zcie-query = { path = "crates/zcie-query" }
+zcie-context = { path = "crates/zcie-context" }
+zcie-api = { path = "crates/zcie-api" }
+zcie-core = { path = "crates/zcie-core" }
+zcie-gateway-http = { path = "gateways/http" }
+zcie-sdk = { path = "sdk/rust" }
+
+# External crates (docs/00-agent-rules.md section 6)
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+thiserror = "2.0.21"
+anyhow = "1.0.104"
+tokio = { version = "1.53.3", features = ["full"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
+rocksdb = { version = "0.25.0", default-features = false, features = ["lz4"] }
+blake3 = "1.8.7"
+zstd = "0.14.2"
+ulid = "3.0.0"
+time = { version = "0.3.55", features = ["formatting", "parsing", "macros"] }
+axum = "0.8.9"
+reqwest = { version = "0.13.5", default-features = false, features = ["blocking", "json"] }
+clap = { version = "4.6.7", features = ["derive", "env"] }
+toml = "1.1.8"
+ignore = "0.4.33"
+globset = "0.4.20"
+notify = "8"
+tree-sitter = "0.27.1"
+tree-sitter-rust = "0.24.2"
+tree-sitter-typescript = "0.23.2"
+tree-sitter-python = "0.25.0"
+tantivy = "0.26.2"
+lru = "0.18.5"
+rmcp = { version = "3.5.1", features = ["server", "transport-io"] }
+regex = "1.13.1"
+getrandom = "0.4.3"
+tempfile = "3.27.0"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+
+[profile.dev.package."*"]
+opt-level = 1
