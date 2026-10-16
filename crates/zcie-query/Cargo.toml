@@ -1,0 +1,26 @@
+[package]
+name = "zcie-query"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+zcie-types.workspace = true
+zcie-store.workspace = true
+zcie-security.workspace = true
+zcie-graph.workspace = true
+zcie-symbols.workspace = true
+zcie-memory.workspace = true
+zcie-parse.workspace = true
+zcie-search.workspace = true
+zcie-cache.workspace = true
+zcie-context.workspace = true
+zcie-ingest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+regex.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

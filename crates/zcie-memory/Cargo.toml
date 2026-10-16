@@ -1,0 +1,19 @@
+[package]
+name = "zcie-memory"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+zcie-types.workspace = true
+zcie-store.workspace = true
+zcie-graph.workspace = true
+zcie-symbols.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+regex.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true
