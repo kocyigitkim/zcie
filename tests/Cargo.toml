@@ -1,0 +1,77 @@
+[package]
+name = "zcie-tests"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+autotests = false
+
+[lib]
+path = "support/lib.rs"
+
+[dependencies]
+zcie-types.workspace = true
+zcie-store.workspace = true
+zcie-security.workspace = true
+zcie-graph.workspace = true
+zcie-fs.workspace = true
+zcie-symbols.workspace = true
+zcie-memory.workspace = true
+zcie-search.workspace = true
+zcie-ingest.workspace = true
+zcie-query.workspace = true
+zcie-api.workspace = true
+zcie-core.workspace = true
+zcie-gateway-http.workspace = true
+zcie-sdk.workspace = true
+serde_json.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+tempfile.workspace = true
+
+[[test]]
+name = "capture_jobs"
+path = "integration/capture_jobs.rs"
+
+[[test]]
+name = "memory_graph"
+path = "integration/memory_graph.rs"
+
+[[test]]
+name = "code_intel"
+path = "integration/code_intel.rs"
+
+[[test]]
+name = "query"
+path = "integration/query.rs"
+
+[[test]]
+name = "forget"
+path = "integration/forget.rs"
+
+[[test]]
+name = "gateways"
+path = "integration/gateways.rs"
+
+[[test]]
+name = "weapon_scenario"
+path = "integration/weapon_scenario.rs"
+
+[[test]]
+name = "multitenancy"
+path = "multitenancy/scope.rs"
+
+[[test]]
+name = "stale_index"
+path = "stale-index/stale.rs"
+
+[[test]]
+name = "crash_recovery"
+path = "crash-recovery/crash.rs"
+
+[[test]]
+name = "token_regression"
+path = "token-regression/token.rs"
+
+[lints]
+workspace = true

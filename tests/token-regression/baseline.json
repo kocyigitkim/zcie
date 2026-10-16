@@ -1,0 +1,22 @@
+{
+  "#89": 219,
+  "Report": 146,
+  "animation controller": 221,
+  "attachToBone": 157,
+  "bone name console log": 204,
+  "broken function": 249,
+  "build_report": 148,
+  "complete_function": 150,
+  "definition of update_animation": 161,
+  "history of the weapon socket": 218,
+  "idle and attack poses jitter": 183,
+  "nonexistent symbol xyz": 72,
+  "quaternion interpolation": 183,
+  "report path basename": 250,
+  "weapon socket bone": 218,
+  "what did we do for weapon attachment": 227,
+  "where is WeaponSocket defined": 194,
+  "where is attach_to_bone defined": 164,
+  "which commit implemented #89": 157,
+  "who calls attach_to_bone": 86
+}
