@@ -102,6 +102,31 @@ pub fn symbol_name(t: &str, workspace_id: &str, lower_name: &str, symbol_id: &st
     key(&[t, "sym_name", workspace_id, lower_name, symbol_id])
 }
 
+/// `lookup: t/"code_seq"/<workspace>` → the sequence of the last file change of the workspace.
+pub fn code_seq(t: &str, workspace_id: &str) -> Vec<u8> {
+    key(&[t, "code_seq", workspace_id])
+}
+
+/// `lookup: t/"file_calls"/<file id>` → the imports and the call sites of the file.
+pub fn file_calls(t: &str, file_id: &str) -> Vec<u8> {
+    key(&[t, "file_calls", file_id])
+}
+
+/// `lookup: t/"file_refs"/<file id>` → the names that the file uses.
+pub fn file_refs(t: &str, file_id: &str) -> Vec<u8> {
+    key(&[t, "file_refs", file_id])
+}
+
+/// Prefix of all symbol names of one workspace.
+pub fn symbol_names_prefix(t: &str, workspace_id: &str) -> Vec<u8> {
+    prefix(&[t, "sym_name", workspace_id])
+}
+
+/// Prefix of all commits of one repository.
+pub fn commits_prefix(t: &str, repository_id: &str) -> Vec<u8> {
+    prefix(&[t, "commit_sha", repository_id])
+}
+
 /// Prefix of all symbols with one lowercase name.
 pub fn symbol_name_prefix(t: &str, workspace_id: &str, lower_name: &str) -> Vec<u8> {
     prefix(&[t, "sym_name", workspace_id, lower_name])
@@ -135,6 +160,11 @@ pub fn blob(t: &str, hash: &str) -> Vec<u8> {
 /// `lookup: t/"turn"/<session>/<turn>/<event id>`.
 pub fn turn(t: &str, session_id: &str, turn_id: &str, event_id: &str) -> Vec<u8> {
     key(&[t, "turn", session_id, turn_id, event_id])
+}
+
+/// Prefix of all turn lookups of one session.
+pub fn session_turns_prefix(t: &str, session_id: &str) -> Vec<u8> {
+    prefix(&[t, "turn", session_id])
 }
 
 /// Prefix of all events of one client turn.

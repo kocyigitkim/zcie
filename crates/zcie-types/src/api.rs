@@ -64,6 +64,13 @@ pub struct RegisterRepositoryRequest {
     /// Optional project name.
     #[serde(default)]
     pub project: Option<String>,
+    /// Index and watch the files (default). False registers the folder for the memory only.
+    #[serde(default = "default_true")]
+    pub index: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// Repository registration response.
@@ -268,9 +275,13 @@ pub struct EnsureProjectRequest {
     /// Project name (usually the folder name). Used when the project is new.
     #[serde(default)]
     pub name: Option<String>,
-    /// Project root folder to register and index.
+    /// Project root folder to register.
     #[serde(default)]
     pub root: Option<String>,
+    /// Also index and watch the files of the root (`zcie project add`). Default: the root only
+    /// maps conversations to the project (ADR-015).
+    #[serde(default)]
+    pub index: bool,
 }
 
 /// One project.
@@ -284,6 +295,28 @@ pub struct ProjectInfo {
     pub roots: Vec<String>,
     /// RFC 3339 creation time.
     pub created_utc: String,
+}
+
+/// Index state of one project (`GET /v1/projects/{id}/status`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectStatus {
+    /// The project.
+    pub project: ProjectInfo,
+    /// Indexed files of all root folders.
+    pub files: u64,
+    /// Indexed symbols.
+    pub symbols: u64,
+    /// Indexed commits.
+    pub commits: u64,
+    /// Memory records (requests, decisions, facts).
+    pub memories: u64,
+    /// Jobs of the project that wait or run (scan, files, commits, messages).
+    pub pending_jobs: u64,
+    /// True if no job of the project waits: the index is complete.
+    pub ready: bool,
+    /// True if a folder of the project is indexed and watched; false: memory only.
+    #[serde(default)]
+    pub indexed: bool,
 }
 
 /// Project list (`GET /v1/projects`).

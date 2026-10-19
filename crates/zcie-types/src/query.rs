@@ -30,6 +30,9 @@ pub struct QueryRequest {
     /// Also query other registered projects whose name appears in the question.
     #[serde(default)]
     pub cross_project: bool,
+    /// Add the trace of the query to the response (ADR-019, D-066).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub explain: bool,
 }
 
 /// Which projects a query reads.
@@ -58,6 +61,10 @@ pub enum QueryMode {
     Timeline,
     /// Memory records.
     Memory,
+    /// Repository map: the most important files and symbols (ADR-017).
+    Map,
+    /// Files, symbols and line ranges to change for a request (ADR-017).
+    Locate,
 }
 
 impl QueryMode {
@@ -69,6 +76,8 @@ impl QueryMode {
             QueryMode::Search => "search",
             QueryMode::Timeline => "timeline",
             QueryMode::Memory => "memory",
+            QueryMode::Map => "map",
+            QueryMode::Locate => "locate",
         }
     }
 }
@@ -123,6 +132,24 @@ pub struct QueryResponse {
     /// Short reason for `not_found` or partial answers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    /// Best share of the question terms that one result contains (0.0 to 1.0).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub match_coverage: Option<f32>,
+    /// `false`: the prompt names no project fact and no result answers it, so clients add no
+    /// context capsule (ADR-017). Absent: the clients decide with their usual gate. Only `false`
+    /// is sent (clients check `capsule != false`, so `true` would only cost tokens).
+    #[serde(default, skip_serializing_if = "not_false")]
+    pub capsule: Option<bool>,
+    /// The next action that the prompt asks for (ADR-019, D-068). `general` is not sent (it is the
+    /// default and would only cost tokens).
+    #[serde(default, skip_serializing_if = "crate::evidence::is_general")]
+    pub intent: Option<crate::evidence::QueryIntent>,
+    /// Exact source slices for an edit, explain or trace prompt (ADR-019, D-069).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evidence: Vec<crate::evidence::EvidenceItem>,
+    /// The query trace, only when the request has `explain: true` (ADR-019, D-066).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trace: Option<crate::trace::QueryTrace>,
 }
 
 /// The answer kind.
@@ -164,6 +191,13 @@ pub struct ResultItem {
     /// Project name, set when a query reads more than one project.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project: Option<String>,
+    /// For a memory record of a follow-up message: the user message before it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<String>,
+    /// For a top user message: the next short user messages of its session, which often refine
+    /// it ("bunu otomatik yapsın ama maliyet artmasın").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub follow_up: Option<String>,
 }
 
 /// Freshness label of a response.
@@ -194,7 +228,7 @@ pub struct Watermarks {
 pub struct ExpandRequest {
     /// Workspace name or `ws_` ID.
     pub workspace: String,
-    /// 1 to 20 refs.
+    /// 1 to 20 refs. An item can also be a line range `path:start-end` (at most 10 ranges).
     pub refs: Vec<String>,
     /// Expansion level. Default `evidence`.
     #[serde(default)]
@@ -205,6 +239,9 @@ pub struct ExpandRequest {
     /// Expected revision of the refs.
     #[serde(default)]
     pub expected_revision: Option<String>,
+    /// Related code to add to each symbol ref: `callers`, `tests` (ADR-017, D-063).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub with: Vec<String>,
 }
 
 /// Expansion level.
@@ -255,6 +292,12 @@ pub struct ExpandItem {
     pub content: Option<String>,
     /// Source event refs.
     pub provenance: Vec<String>,
+    /// The rest of a cut range: `path:start-end` (ADR-017, D-063).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub more: Option<String>,
+    /// Related lines (`with`): "caller path:line text" or "test path:line text".
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub related: Vec<String>,
 }
 
 /// Expansion status.
@@ -269,4 +312,9 @@ pub enum ExpandStatus {
     NotFound,
     /// The scope check failed.
     Forbidden,
+}
+
+/// True unless the value is `Some(false)` (the serde skip rule of `QueryResponse::capsule`).
+fn not_false(value: &Option<bool>) -> bool {
+    *value != Some(false)
 }

@@ -8,5 +8,5 @@ pub mod fixture;
 pub mod process;
 
 pub use engine::{TestEngine, admin, read_only_auth, workspace_auth};
-pub use fixture::{commit_all, fixture_repo, git};
+pub use fixture::{commit_all, fixture_repo, git, ledger_repo};
 pub use process::{DaemonProcess, free_port, mcp_session, mcp_session_in, workspace_root};

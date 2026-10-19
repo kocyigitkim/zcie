@@ -13,6 +13,7 @@ zcie-symbols.workspace = true
 zcie-memory.workspace = true
 zcie-parse.workspace = true
 zcie-search.workspace = true
+zcie-vector.workspace = true
 zcie-cache.workspace = true
 zcie-context.workspace = true
 zcie-ingest.workspace = true

@@ -62,6 +62,14 @@ name = "projects"
 path = "integration/projects.rs"
 
 [[test]]
+name = "sdks"
+path = "integration/sdks.rs"
+
+[[test]]
+name = "vector"
+path = "integration/vector.rs"
+
+[[test]]
 name = "multitenancy"
 path = "multitenancy/scope.rs"
 
@@ -79,3 +87,27 @@ path = "token-regression/token.rs"
 
 [lints]
 workspace = true
+
+[[test]]
+name = "install"
+path = "integration/install.rs"
+
+[[test]]
+name = "indexing_scope"
+path = "integration/indexing_scope.rs"
+
+[[test]]
+name = "context_efficiency"
+path = "integration/context_efficiency.rs"
+
+[[test]]
+name = "context_hooks"
+path = "integration/context_hooks.rs"
+
+[[test]]
+name = "evidence"
+path = "integration/evidence.rs"
+
+[[test]]
+name = "usage"
+path = "integration/usage.rs"

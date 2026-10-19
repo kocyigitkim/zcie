@@ -8,11 +8,16 @@ use crate::error::{ApiError, ApiResult};
 
 /// Shortest project name that a question can name.
 const MIN_NAME_CHARS: usize = 3;
+/// Phrases that ask about all projects (English and Turkish, lowercase).
+const ALL_PROJECTS: [&str; 12] = [
+    "all my projects", "all projects", "my projects", "which project", "which of my projects", "across projects",
+    "every project", "tüm projeler", "bütün projeler", "projelerim", "hangi proje", "her proje",
+];
 
 impl Engine {
     /// Returns the projects that a query reads.
     pub(crate) fn query_targets(&self, auth: &AuthContext, request: &QueryRequest) -> ApiResult<Vec<WorkspaceRecord>> {
-        if request.scope == QueryScope::Global {
+        if request.scope == QueryScope::Global || (request.cross_project && asks_all_projects(&request.question)) {
             let all = self.permitted_projects(auth)?;
             if all.is_empty() {
                 return Err(ApiError::NotFound("no project".into()));
@@ -23,7 +28,8 @@ impl Engine {
         let mut targets = Vec::new();
         if request.cross_project {
             for project in self.permitted_projects(auth)? {
-                if project.workspace_id != current.workspace_id && names_project(&request.question, &project.name) {
+                let named = names_project(&request.question, &project.name) || names_project(&request.question, &project.workspace_id);
+                if project.workspace_id != current.workspace_id && named {
                     targets.push(project);
                 }
             }
@@ -32,6 +38,12 @@ impl Engine {
         targets.push(current);
         Ok(targets)
     }
+}
+
+/// Returns true if the question asks about all projects, for example "which of my projects use Redis".
+pub fn asks_all_projects(question: &str) -> bool {
+    let question = question.to_lowercase();
+    ALL_PROJECTS.iter().any(|phrase| question.contains(phrase))
 }
 
 /// Returns true if the question names the project as a whole word (case-insensitive).
@@ -64,11 +76,31 @@ pub(crate) fn query_many(engine: &Engine, auth: &AuthContext, request: &QueryReq
         }
         responses.push((project.name.clone(), response));
     }
-    if request.scope == QueryScope::Global {
+    if request.scope == QueryScope::Global || asks_all_projects(&request.question) {
         let top = |r: &QueryResponse| r.results.first().map_or(f32::MIN, |i| i.score);
         responses.sort_by(|a, b| top(&b.1).total_cmp(&top(&a.1)));
+        zcie_query::relevance::rank_by_coverage(&request.question, &mut responses);
     }
-    Ok(merge(engine, request, responses))
+    let mut merged = merge(engine, request, responses);
+    merged.note = Some(roots_note(engine, targets, &merged));
+    Ok(merged)
+}
+
+/// Returns "<n> projects: name=root, ..." for the projects that have results, so that a client
+/// can open a file of another project (result paths are relative to the project root).
+fn roots_note(engine: &Engine, targets: &[WorkspaceRecord], response: &QueryResponse) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    for project in targets {
+        if !response.results.iter().any(|r| r.project.as_deref() == Some(project.name.as_str())) {
+            continue;
+        }
+        let root = engine.project_info(&project.workspace_id).ok().and_then(|info| info.roots.into_iter().next());
+        parts.push(match root {
+            Some(root) => format!("{}={root}", project.name),
+            None => project.name.clone(),
+        });
+    }
+    format!("{} projects: {}", targets.len(), parts.join(", "))
 }
 
 fn merge(engine: &Engine, request: &QueryRequest, responses: Vec<(String, QueryResponse)>) -> QueryResponse {
@@ -93,7 +125,10 @@ fn merge(engine: &Engine, request: &QueryRequest, responses: Vec<(String, QueryR
     };
     base.memory_links = responses.iter().flat_map(|(_, r)| r.memory_links.clone()).take(max_results).collect();
     base.freshness = freshness;
-    base.note = Some(format!("{} projects: {}", responses.len(), responses.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>().join(", ")));
+    // Set before the capsule is built, so that the token budget counts it.
+    base.match_coverage = Some(zcie_query::relevance::match_coverage(&request.question, &items));
+    // No capsule only if no project has something specific for the prompt (ADR-017).
+    base.capsule = responses.iter().all(|(_, r)| r.capsule == Some(false)).then_some(false);
     let mut response = zcie_context::build_capsule(base, items, budget, 0).response;
     // A merged response has no stored continuation. A caller asks again with a larger budget.
     response.cursor = None;

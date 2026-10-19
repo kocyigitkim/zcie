@@ -27,7 +27,8 @@ pub enum RepoAction {
 pub struct QueryArgs {
     /// Question, symbol name or ref.
     pub question: String,
-    /// Query mode: auto, exact, search, timeline, memory.
+    /// Query mode: auto, exact, search, timeline, memory, map (repository map), locate (files and
+    /// line ranges to change).
     #[arg(long, default_value = "auto")]
     pub mode: String,
     /// Token budget.
@@ -39,12 +40,15 @@ pub struct QueryArgs {
     /// Search all projects.
     #[arg(long)]
     pub global: bool,
+    /// Add the trace: why each candidate was kept or dropped, and the stage durations.
+    #[arg(long)]
+    pub explain: bool,
 }
 
 /// Arguments of `zcie expand`.
 #[derive(Debug, Args)]
 pub struct ExpandArgs {
-    /// Refs to expand.
+    /// Refs to expand, or line ranges `path:start-end` (at most 10, 100 lines each).
     #[arg(required = true)]
     pub refs: Vec<String>,
     /// Level: evidence, source, audit.
@@ -53,6 +57,9 @@ pub struct ExpandArgs {
     /// Token budget.
     #[arg(long)]
     pub budget: Option<u32>,
+    /// Related lines of symbol refs: callers, tests (comma-separated).
+    #[arg(long, value_delimiter = ',')]
+    pub with: Vec<String>,
 }
 
 /// Arguments of `zcie link`.
@@ -111,6 +118,7 @@ pub fn run_query(args: QueryArgs, client: &Client) -> anyhow::Result<()> {
         max_results: args.max_results,
         scope: if args.global { zcie_types::QueryScope::Global } else { zcie_types::QueryScope::Project },
         cross_project: true,
+        explain: args.explain,
         ..QueryRequest::default()
     };
     print_json(&client.query_request(request)?)
@@ -119,7 +127,7 @@ pub fn run_query(args: QueryArgs, client: &Client) -> anyhow::Result<()> {
 /// Runs `zcie expand`.
 pub fn run_expand(args: ExpandArgs, client: &Client) -> anyhow::Result<()> {
     let level: ExpandLevel = parse_enum(&args.level, "level")?;
-    print_json(&client.expand(&args.refs, level, args.budget)?)
+    print_json(&client.expand_with(&args.refs, level, args.budget, &args.with)?)
 }
 
 /// Runs `zcie link` with user confirmation evidence.

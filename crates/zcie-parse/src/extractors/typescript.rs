@@ -65,8 +65,10 @@ fn visit_class(node: Node, src: &[u8], scope: &[String], out: &mut ParsedFile) {
     }
 }
 
-/// Handles `const name = (...) => ...` at the top level.
+/// Handles top-level `const name = (...) => ...` (a function) and other top-level `const`
+/// declarations (a constant). `let` and `var` declarations are not symbols.
 fn visit_lexical(node: Node, src: &[u8], scope: &[String], out: &mut ParsedFile) {
+    let is_const = node.child(0).is_some_and(|keyword| keyword.kind() == "const");
     for declarator in named_children(node) {
         if declarator.kind() != "variable_declarator" {
             continue;
@@ -74,12 +76,14 @@ fn visit_lexical(node: Node, src: &[u8], scope: &[String], out: &mut ParsedFile)
         let is_function = declarator
             .child_by_field_name("value")
             .is_some_and(|value| matches!(value.kind(), "arrow_function" | "function_expression"));
-        if !is_function {
-            continue;
-        }
-        if let Some(name) = field_text(declarator, "name", src) {
+        let kind = match (is_function, is_const) {
+            (true, _) => SymbolKind::Function,
+            (false, true) => SymbolKind::Constant,
+            (false, false) => continue,
+        };
+        if let Some(name) = field_text(declarator, "name", src).filter(|n| !n.starts_with(['{', '['])) {
             let qualified = qualify(scope, name, SEPARATOR);
-            out.symbols.push(make_symbol(node, src, name, qualified, SymbolKind::Function));
+            out.symbols.push(make_symbol(node, src, name, qualified, kind));
         }
     }
 }

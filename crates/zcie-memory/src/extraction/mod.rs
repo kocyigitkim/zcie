@@ -1,5 +1,7 @@
 //! Tier A extraction of one event (`docs/08-memory-and-graph.md` section 3.2).
 
+pub mod context;
+pub mod correction;
 pub mod tier_a;
 
 use zcie_store::{Batch, ObjectStore, Store};
@@ -8,7 +10,7 @@ use zcie_types::{
     MemoryKind, MemoryRecord, Ref, Relation, TaskState, TestResultPayload,
 };
 
-use crate::capture::{find_file_ref, link_requirement, turn_events};
+use crate::capture::{find_file_ref, link_requirement, previous_user_message, turn_events};
 use crate::conflict::mark_contradiction;
 use crate::error::Result;
 use crate::mentions::add_mentions;
@@ -49,20 +51,50 @@ pub fn process_event(store: &Store, objects: &ObjectStore, batch: &mut Batch, ev
 }
 
 fn add_record(store: &Store, batch: &mut Batch, event: &EventEnvelope, kind: MemoryKind, text: &str, confidence: f32, outcome: &mut Outcome) -> Result<MemoryRecord> {
-    let record = new_memory(&event.scope, kind, text, confidence, &event.event_id, &event.timestamp_utc);
+    add_record_in_context(store, batch, event, (kind, text, confidence), None, outcome)
+}
+
+/// Adds a record with the context of a follow-up message (see `MemoryRecord::context`).
+fn add_record_in_context(store: &Store, batch: &mut Batch, event: &EventEnvelope, (kind, text, confidence): (MemoryKind, &str, f32), context: Option<String>, outcome: &mut Outcome) -> Result<MemoryRecord> {
+    let mut record = new_memory(&event.scope, kind, text, confidence, &event.event_id, &event.timestamp_utc);
+    record.context = context;
     put_memory(batch, &record)?;
     put_derived_from(store, batch, &record, event)?;
     outcome.changed_refs.push(format!("mem:{}", record.memory_id));
     Ok(record)
 }
 
+/// Longest message that gets the previous user message as context (a short follow-up message).
+pub const MAX_FOLLOW_UP_CHARS: usize = 400;
+
+/// Longest message that can make tasks from refs.
+const MAX_TASK_MESSAGE_CHARS: usize = 2_000;
+
+/// True for a long or pasted document.
+fn is_document(text: &str) -> bool {
+    text.contains("<pasted_content") || text.chars().count() > MAX_TASK_MESSAGE_CHARS
+}
+
+/// True for a shell command typed in the bash mode of Claude Code ("! zcie doctor"): it is a
+/// command, not a request or an idea of the user.
+pub fn is_shell_input(text: &str) -> bool {
+    text.trim_start().starts_with('!')
+}
+
 fn process_user_message(store: &Store, objects: &ObjectStore, batch: &mut Batch, event: &EventEnvelope, text: &str, outcome: &mut Outcome) -> Result<()> {
+    if is_shell_input(text) {
+        return Ok(());
+    }
     let matches = find_matches(text);
-    let requirement = add_record(store, batch, event, MemoryKind::UserRequirement, text, 1.0, outcome)?;
+    let context = if text.chars().count() <= MAX_FOLLOW_UP_CHARS { previous_user_message(store, objects, event)? } else { None };
+    let requirement = add_record_in_context(store, batch, event, (MemoryKind::UserRequirement, text, 1.0), context, outcome)?;
     add_markers(store, batch, event, &matches, outcome)?;
+    outcome.changed_refs.extend(correction::apply_correction(store, batch, event, &requirement)?);
     let req_ref = format!("mem:{}", requirement.memory_id);
     outcome.changed_refs.extend(add_mentions(store, batch, event, &req_ref, &matches)?);
-    let task_refs = apply_task_rule(store, batch, event, text, &matches, &req_ref)?;
+    // A long document (a pasted specification) has example refs such as "#89" or "STE-100"; they
+    // are not tasks of the user. Task refs count in short messages only.
+    let task_refs = if is_document(text) { Vec::new() } else { apply_task_rule(store, batch, event, text, &matches, &req_ref)? };
     outcome.changed_refs.extend(task_refs.iter().cloned());
     for (_, value) in turn_events(store, event)? {
         if value.event_type != EventType::FileChanged.name() {

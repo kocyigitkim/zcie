@@ -25,10 +25,42 @@ pub const TIMELINE_KEYWORDS: &[&str] = &[
     "agreed",
     "any rule",
     "why did we",
+    "did we",
+    "have we",
+    "we rejected",
+    "we chose",
+    "we picked",
+    "reddettik",
+    "vazgeçtik",
     "karar",
     "neden",
     "kural",
+    "konuşmuştuk",
+    "konuştuk",
+    "hatırla",
+    "anlaştık",
+    "anlaşmıştık",
+    "seçtik",
+    "demiştim",
+    "demiştin",
+    "what did the user",
+    "the user want",
+    "the user asked",
+    "the user said",
 ];
+
+/// Words that, with "kullanıcı" (the user) in the question, ask about the ideas of the user:
+/// verbs ("istedi", "dedi") and phrases ("kullanıcıya göre", "kullanıcının spesifikasyonu").
+const USER_INTENT_VERBS: &[&str] = &[
+    "istedi", "istiyor", "istemiş", "dedi", "söyledi", "bekliyor", "beklenti", "karar", "tercih", "onayl", "göre",
+    "spesifikasyon", "isteği", "fikri", "fikir", "görüş", "düşün",
+];
+
+/// True for a question about what the user wanted, said or decided ("Kullanıcı testlerin ne zaman
+/// yapılmasını istedi?"). Such a question reads the conversation memory first.
+fn asks_user_intent(lower: &str) -> bool {
+    lower.contains("kullanıcı") && contains_any(lower, USER_INTENT_VERBS)
+}
 /// Keywords of the `Implementation` class.
 pub const IMPLEMENTATION_KEYWORDS: &[&str] = &["which commit", "implemented", "implements", "hangi commit"];
 
@@ -73,7 +105,7 @@ pub fn classify(question: &str, mode: QueryMode, is_symbol: &dyn Fn(&str) -> boo
     if contains_any(&lower, CALLER_KEYWORDS) {
         return QueryClass::Callers;
     }
-    if contains_any(&lower, TIMELINE_KEYWORDS) {
+    if contains_any(&lower, TIMELINE_KEYWORDS) || asks_user_intent(&lower) {
         return QueryClass::Timeline;
     }
     if contains_any(&lower, IMPLEMENTATION_KEYWORDS) {

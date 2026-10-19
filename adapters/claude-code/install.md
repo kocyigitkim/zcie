@@ -21,6 +21,10 @@ Measured effect: −63 % tokens, −42 % cost, 30/30 correct (see `benchmarks/re
 If a folder has no ID file, the SessionStart hook of the first Claude Code session makes the project and writes the file.
 All memory is kept by this ID in the one store `~/.zcie`. A prompt that names another project (for example "how does billing compute tax") also reads that project. `zcie query --global "<question>"` reads all projects.
 `--name <name>` sets the project name (default: the folder name). `zcie project list` shows all projects.
+
+### 0.2 Keep it working (ADR-010)
+- `zcie doctor` checks the daemon, the hooks, the key and the project of the folder. After an update of `zcie`, run `zcie doctor --fix` to reinstall the hook scripts.
+- `zcie daemon install` starts the daemon at login (macOS). Without the daemon the hooks record nothing; the SessionStart hook then tells the model to ask you to start it.
 The sections below describe the manual setup.
 
 The hooks send events to the ZCIE daemon. They use `jq` and `curl`.

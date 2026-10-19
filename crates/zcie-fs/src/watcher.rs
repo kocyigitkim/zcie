@@ -8,6 +8,7 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError, channel};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use zcie_security::ExcludeSet;
 
@@ -60,7 +61,8 @@ impl FileWatcher {
             .watch(&root, RecursiveMode::Recursive)
             .map_err(|e| Error::Notify(e.to_string()))?;
         let stop = Arc::new(AtomicBool::new(false));
-        let state = DebounceState { root, debounce, exclude, on_change, stop: Arc::clone(&stop) };
+        let gitignore = root_gitignore(&root);
+        let state = DebounceState { root, debounce, exclude, gitignore, on_change, stop: Arc::clone(&stop) };
         let thread = std::thread::Builder::new()
             .name("zcie-watcher".to_string())
             .spawn(move || state.run(receiver))?;
@@ -77,10 +79,23 @@ impl Drop for FileWatcher {
     }
 }
 
+/// The `.gitignore` and `.git/info/exclude` rules of the root, the same rules as a scan uses for
+/// the top folder: changes of build outputs (`build/`, `target/`, `.build/`) make no jobs.
+fn root_gitignore(root: &Path) -> Gitignore {
+    let mut builder = GitignoreBuilder::new(root);
+    for file in [root.join(".gitignore"), root.join(".git/info/exclude")] {
+        if file.is_file() {
+            let _ = builder.add(file);
+        }
+    }
+    builder.build().unwrap_or_else(|_| Gitignore::empty())
+}
+
 struct DebounceState {
     root: PathBuf,
     debounce: Duration,
     exclude: ExcludeSet,
+    gitignore: Gitignore,
     on_change: ChangeHandler,
     stop: Arc<AtomicBool>,
 }
@@ -105,7 +120,7 @@ impl DebounceState {
         }
         for path in &event.paths {
             let Some(rel_path) = self.relative(path) else { continue };
-            if self.exclude.is_excluded(&rel_path) {
+            if self.exclude.is_excluded(&rel_path) || self.gitignore.matched_path_or_any_parents(&rel_path, path.is_dir()).is_ignore() {
                 continue;
             }
             pending.insert(rel_path, Instant::now());

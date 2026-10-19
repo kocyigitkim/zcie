@@ -57,6 +57,8 @@ pub struct Fields {
     pub name: Field,
     /// Full text (not stored).
     pub body: Field,
+    /// Stems of the name and the body (`stem_text`), so that inflected words match (ADR-013).
+    pub stems: Field,
     /// Sequence of the source state.
     pub seq: Field,
 }
@@ -74,9 +76,64 @@ pub fn build_schema() -> (Schema, Fields) {
         path: builder.add_text_field("path", TEXT | STORED),
         name: builder.add_text_field("name", TEXT | STORED),
         body: builder.add_text_field("body", TEXT),
+        stems: builder.add_text_field("stems", TEXT),
         seq: builder.add_u64_field("seq", INDEXED | STORED | FAST),
     };
     (builder.build(), fields)
+}
+
+/// Characters of a stem. Truncation to 5 characters is a strong stemmer for Turkish (an
+/// agglutinative language: "motorun", "motorlar" → "motor") and works for English too.
+pub const STEM_CHARS: usize = 5;
+
+/// Returns the accent-free lowercase form of a letter (Turkish and common Latin letters).
+pub fn fold_char(c: char) -> char {
+    match c {
+        'ç' | 'Ç' => 'c',
+        'ğ' | 'Ğ' => 'g',
+        'ı' | 'I' | 'İ' | 'î' | 'í' | 'ì' | 'ï' => 'i',
+        'ö' | 'Ö' | 'ô' | 'ó' | 'ò' => 'o',
+        'ş' | 'Ş' => 's',
+        'ü' | 'Ü' | 'û' | 'ú' | 'ù' => 'u',
+        'â' | 'á' | 'à' | 'ä' => 'a',
+        'é' | 'è' | 'ê' | 'ë' => 'e',
+        other => other.to_lowercase().next().unwrap_or(other),
+    }
+}
+
+/// Removes Turkish suffixes that follow an apostrophe ("API'sine" → "API", "Elif'in" → "Elif").
+pub fn drop_apostrophe_suffixes(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut skipping = false;
+    for c in text.chars() {
+        if c == '\'' || c == '’' {
+            skipping = true;
+            continue;
+        }
+        if skipping && c.is_alphabetic() {
+            continue;
+        }
+        skipping = false;
+        out.push(c);
+    }
+    out
+}
+
+/// Returns the stems of the words of a text, separated by spaces: apostrophe suffixes removed,
+/// identifiers split, letters folded, each word cut to `STEM_CHARS` characters.
+pub fn stem_text(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() / 2);
+    for word in expand_identifiers(&drop_apostrophe_suffixes(text)).split(|c: char| !c.is_alphanumeric()) {
+        if word.is_empty() {
+            continue;
+        }
+        let stem: String = word.chars().map(fold_char).take(STEM_CHARS).collect();
+        if !out.is_empty() {
+            out.push(' ');
+        }
+        out.push_str(&stem);
+    }
+    out
 }
 
 /// Adds split forms of identifiers: `attachToBone` and `attach_to_bone` also give `attach to bone`.

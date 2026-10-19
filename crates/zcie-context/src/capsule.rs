@@ -57,6 +57,8 @@ pub fn build_capsule(mut base: QueryResponse, items: Vec<ResultItem>, budget: u3
 /// Returns the item with no snippet and a short title.
 pub fn ref_only(mut item: ResultItem) -> ResultItem {
     item.snippet = None;
+    item.context = None;
+    item.follow_up = None;
     item.title = truncate_chars(&item.title, REF_ONLY_TITLE);
     item
 }

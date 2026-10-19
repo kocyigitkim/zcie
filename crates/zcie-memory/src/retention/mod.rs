@@ -20,3 +20,21 @@ pub fn retract_records_of_events(store: &Store, batch: &mut Batch, tenant: &str,
     }
     Ok(refs)
 }
+
+/// Deletes the tasks that a forgotten event made (`created_from`), with their external ref lookup.
+/// Returns the deleted task refs, so that the caller removes their edges and search documents.
+pub fn delete_tasks_of_events(store: &Store, batch: &mut Batch, tenant: &str, forgotten: &[EventId]) -> Result<Vec<String>> {
+    let mut refs = Vec::new();
+    let prefix = zcie_store::layout::entity_prefix(tenant, "task");
+    zcie_store::recovery::for_each_page::<zcie_types::TaskRecord>(store, zcie_store::Cf::Entities, &prefix, 1_000, &mut |page| {
+        for (key, task) in page.into_iter().filter(|(_, t)| forgotten.contains(&t.created_from)) {
+            batch.delete(zcie_store::Cf::Entities, key);
+            if let Some(external) = &task.external_ref {
+                batch.delete(zcie_store::Cf::Lookup, zcie_store::layout::task_external(tenant, &task.scope.workspace_id, external));
+            }
+            refs.push(format!("task:{}", task.task_id));
+        }
+        Ok(())
+    })?;
+    Ok(refs)
+}

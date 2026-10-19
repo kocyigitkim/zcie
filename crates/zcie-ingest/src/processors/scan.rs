@@ -8,7 +8,7 @@ use zcie_store::{Cf, layout};
 use zcie_types::job::file_target;
 use zcie_types::{FileRecord, JobKind, JobPriority, JobRecord, RepositoryRecord, WorktreeRecord, now_utc};
 
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::ingest::Ingest;
 use crate::processors::Output;
 
@@ -22,7 +22,8 @@ impl Ingest {
     pub(crate) fn scan_worktree(&self, job: &JobRecord) -> Result<Output> {
         let t = self.tenant().to_string();
         let key = layout::registry(&t, "worktree", &job.target);
-        let mut worktree: WorktreeRecord = self.store.get(Cf::Registry, &key)?.ok_or_else(|| Error::NotFound(job.target.clone()))?;
+        // A removed worktree (a deleted project) has nothing to scan.
+        let Some(mut worktree) = self.store.get::<WorktreeRecord>(Cf::Registry, &key)? else { return Ok(Output::default()) };
         let repository: Option<RepositoryRecord> = self.store.get(Cf::Registry, &layout::registry(&t, "repository", &worktree.repository_id))?;
         let has_git = repository.map(|r| r.has_git).unwrap_or(false);
         let root = Path::new(&worktree.root_path).to_path_buf();

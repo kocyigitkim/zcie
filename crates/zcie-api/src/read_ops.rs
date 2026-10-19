@@ -8,7 +8,7 @@ use zcie_store::{Cf, layout};
 use zcie_types::api::{HealthReport, QueueReport, TimelineItem};
 use zcie_types::{
     Classification, CommitRecord, ExpandRequest, ExpandResponse, FileRecord, MemoryRecord, QueryRequest, QueryResponse,
-    Ref, Scope, SymbolRecord, TaskRecord,
+    Ref, Scope, SymbolRecord, TaskRecord, truncate_chars,
 };
 
 use crate::engine::Engine;
@@ -20,22 +20,40 @@ impl Engine {
     pub fn query(&self, auth: &AuthContext, request: QueryRequest) -> ApiResult<QueryResponse> {
         self.require(auth, Permission::Read)?;
         zcie_telemetry::Counters::inc(&self.ingest.counters.queries);
+        let start = std::time::Instant::now();
+        let hits = zcie_telemetry::Counters::get(&self.ingest.counters.cache_hits);
         let targets = self.query_targets(auth, &request)?;
-        match targets.as_slice() {
+        let response = match targets.as_slice() {
             [one] => {
                 let ctx = self.query_context(auth, one, request.repository_id.clone());
-                Ok(self.query.run(&ctx, &request)?)
+                self.query.run(&ctx, &request)?
             }
-            _ => crate::multi::query_many(self, auth, &request, &targets),
-        }
+            _ => crate::multi::query_many(self, auth, &request, &targets)?,
+        };
+        let cached = zcie_telemetry::Counters::get(&self.ingest.counters.cache_hits) > hits;
+        let workspaces: Vec<&str> = targets.iter().map(|t| t.workspace_id.as_str()).collect();
+        self.ingest.counters.record(json!({
+            "op": "query", "ws": workspaces.first().copied().unwrap_or_default(), "projects": workspaces.len(),
+            "client": auth.client_name, "ms": ms(start), "question": truncate_chars(&request.question, 160),
+            "class": response.class, "results": response.results.len(), "tokens": response.token_estimate,
+            "budget": response.token_budget, "truncated": response.truncated, "cached": cached,
+        }));
+        Ok(response)
     }
 
     /// Expands refs (`POST /v1/expand`).
     pub fn expand(&self, auth: &AuthContext, request: ExpandRequest) -> ApiResult<ExpandResponse> {
         self.require(auth, Permission::Read)?;
+        let start = std::time::Instant::now();
         let workspace = self.resolve_workspace(auth, &request.workspace, false)?;
         let ctx = self.query_context(auth, &workspace, None);
-        Ok(self.query.expand(&ctx, &request)?)
+        let response = self.query.expand(&ctx, &request)?;
+        self.ingest.counters.record(json!({
+            "op": "expand", "ws": workspace.workspace_id, "client": auth.client_name, "ms": ms(start),
+            "refs": request.refs.len(), "items": response.items.len(), "tokens": response.token_estimate,
+            "truncated": response.truncated, "first_ref": request.refs.first(),
+        }));
+        Ok(response)
     }
 
     /// Returns the stored record of a ref as JSON (`GET /v1/entities/{ref}`).
@@ -116,6 +134,11 @@ impl Engine {
         let job = zcie_types::JobRecord::new(zcie_types::JobKind::UpdateSearch, scope, zcie_types::JobPriority::Interactive, self.ingest.event_seq(), "all".into());
         Ok(self.ingest.enqueue_job(job)?.0)
     }
+}
+
+/// Milliseconds since `start`, with 0.1 ms precision.
+pub(crate) fn ms(start: std::time::Instant) -> f64 {
+    (start.elapsed().as_secs_f64() * 10_000.0).round() / 10.0
 }
 
 type RecordParts = Option<(Value, Scope, Classification)>;

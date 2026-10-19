@@ -34,6 +34,24 @@ pub struct FileRecord {
     /// True if the content is in the object store.
     #[serde(default)]
     pub content_stored: bool,
+    /// Extractor version that made the symbols (`zcie_parse::PARSER_VERSION`). 0 for old records.
+    #[serde(default)]
+    pub parser_version: u32,
+}
+
+/// One call site of a file (ADR-019, D-071): the called name, its qualifier and its line.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CallSite {
+    /// Called name (last segment).
+    pub name: String,
+    /// Path or object before the name (`fees` in `fees::apply`, `self` in `self.apply`), if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub qualifier: Option<String>,
+    /// True for a method call on a value (`x.apply()`); the type of the value is not known.
+    #[serde(default)]
+    pub method: bool,
+    /// Line of the call (1-based).
+    pub line: u32,
 }
 
 /// One named code declaration.

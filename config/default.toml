@@ -39,3 +39,7 @@ exclude_globs = [".env", ".env.*", "*.pem", "*.key", "id_rsa*"]  # added to the 
 [capture]
 assistant_messages = false        # assistant.message events get HTTP 403 when false
 command_output_max_bytes = 65536  # command, tool and test output is truncated to this size
+
+[vector]
+enabled = true                    # local vector search (ADR-011); needs the model: zcie vector install
+model = "potion-base-8M"          # folder under <home>/models/

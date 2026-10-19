@@ -71,6 +71,15 @@ pub struct SetupArgs {
     /// Do not register the project folder in ZCIE.
     #[arg(long)]
     pub no_register: bool,
+    /// Token budget of the context capsule of each prompt (default of the hook: 1200).
+    #[arg(long)]
+    pub budget: Option<u32>,
+    /// Do not check the project when a turn changed code (no verification gate, ADR-020).
+    #[arg(long)]
+    pub no_check: bool,
+    /// The context hook reads the current project only (no projects that a prompt names).
+    #[arg(long)]
+    pub no_cross_project: bool,
     /// Show the result without writing files.
     #[arg(long)]
     pub dry_run: bool,

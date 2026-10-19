@@ -54,12 +54,18 @@ impl JobQueue {
         if queues.interactive.len() + queues.background.len() >= self.capacity {
             return Err(Error::Busy);
         }
+        // Background jobs use at most half of the queue, so that interactive jobs (captured
+        // messages, file edits) always find room while a large repository is indexed.
+        if job.priority == JobPriority::Background && queues.background.len() >= self.background_capacity() {
+            return Err(Error::Busy);
+        }
         queues.queued_ids.insert(job.job_id.0.clone());
         match job.priority {
             JobPriority::Interactive => queues.interactive.push_back(job),
             JobPriority::Background => queues.background.push_back(job),
         }
-        self.ready.notify_one();
+        // All workers wake: the interactive-only worker must see an interactive job at once.
+        self.ready.notify_all();
         Ok(())
     }
 
@@ -72,6 +78,34 @@ impl JobQueue {
         let job = queues.interactive.pop_front().or_else(|| queues.background.pop_front())?;
         queues.queued_ids.remove(job.job_id.as_str());
         Some(job)
+    }
+
+    /// Takes the next interactive job. Waits at most `timeout`. Returns `None` on timeout or close.
+    pub fn pop_interactive(&self, timeout: Duration) -> Option<JobRecord> {
+        let mut queues = self.lock();
+        if queues.interactive.is_empty() && !queues.closed {
+            queues = self.ready.wait_timeout(queues, timeout).map(|r| r.0).unwrap_or_else(|e| e.into_inner().0);
+        }
+        let job = queues.interactive.pop_front()?;
+        queues.queued_ids.remove(job.job_id.as_str());
+        Some(job)
+    }
+
+    /// Returns the most jobs that the queue holds.
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+
+    /// Returns the most background jobs that the queue holds (half of the capacity, at least 1).
+    pub fn background_capacity(&self) -> usize {
+        (self.capacity / 2).max(1)
+    }
+
+    /// Returns true if a job of this priority fits now.
+    pub fn has_room_for(&self, priority: JobPriority) -> bool {
+        let queues = self.lock();
+        let total = queues.interactive.len() + queues.background.len();
+        total < self.capacity && (priority == JobPriority::Interactive || queues.background.len() < self.background_capacity())
     }
 
     /// Returns true if the queue has room for `count` more jobs.

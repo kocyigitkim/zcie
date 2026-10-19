@@ -12,7 +12,7 @@ use serde::de::DeserializeOwned;
 use zcie_types::MemoryRecord;
 use zcie_types::api::{
     CaptureReceipt, CaptureRequest, CorrectRequest, CreateTaskRequest, ErrorBody, ForgetReceipt,
-    EnsureProjectRequest, ForgetRequest, HealthReport, JobResponse, LinkRequest, LinkResponse, ProjectInfo, ProjectList,
+    EnsureProjectRequest, ForgetRequest, HealthReport, JobResponse, LinkRequest, LinkResponse, ProjectInfo, ProjectList, ProjectStatus,
     RegisterRepositoryRequest, RegisterRepositoryResponse, RenameProjectRequest, TimelineResponse,
 };
 use zcie_types::query::{ExpandLevel, ExpandRequest, ExpandResponse, QueryRequest, QueryResponse};
@@ -67,12 +67,13 @@ impl Client {
         self.post("/v1/events", &request)
     }
 
-    /// Registers a repository folder.
+    /// Registers a repository folder and indexes it.
     pub fn register_repository(&self, path: &str, project: Option<&str>) -> Result<RegisterRepositoryResponse> {
         let request = RegisterRepositoryRequest {
             workspace: self.workspace.clone(),
             path: path.to_string(),
             project: project.map(str::to_string),
+            index: true,
         };
         self.post("/v1/repositories", &request)
     }
@@ -104,6 +105,20 @@ impl Client {
             level,
             token_budget,
             expected_revision: None,
+            with: Vec::new(),
+        };
+        self.post("/v1/expand", &request)
+    }
+
+    /// Expands refs and line ranges (`path:start-end`), with related code (`callers`, `tests`).
+    pub fn expand_with(&self, refs: &[String], level: ExpandLevel, token_budget: Option<u32>, with: &[String]) -> Result<ExpandResponse> {
+        let request = ExpandRequest {
+            workspace: self.workspace.clone(),
+            refs: refs.to_vec(),
+            level,
+            token_budget,
+            expected_revision: None,
+            with: with.to_vec(),
         };
         self.post("/v1/expand", &request)
     }
@@ -170,6 +185,11 @@ impl Client {
     /// Reads one project by ID or name.
     pub fn project(&self, id_or_name: &str) -> Result<ProjectInfo> {
         self.get(&format!("/v1/projects/{}", encode_path_part(id_or_name)))
+    }
+
+    /// Reads the index state of a project (files, symbols, commits, pending jobs).
+    pub fn project_status(&self, id_or_name: &str) -> Result<ProjectStatus> {
+        self.get(&format!("/v1/projects/{}/status", encode_path_part(id_or_name)))
     }
 
     /// Renames a project.

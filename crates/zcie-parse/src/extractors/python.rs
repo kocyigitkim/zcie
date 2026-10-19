@@ -40,6 +40,7 @@ fn visit(node: Node, src: &[u8], scope: &[String], in_class: bool, out: &mut Par
                 out.imports.push(module.to_string());
             }
         }
+        "expression_statement" if !in_class && scope.is_empty() => push_constant(node, src, out),
         "lambda" => {}
         _ => walk(node, src, scope, in_class, out),
     }
@@ -55,6 +56,18 @@ fn visit_class(node: Node, src: &[u8], scope: &[String], out: &mut ParsedFile) {
         let mut inner = scope.to_vec();
         inner.push(name.to_string());
         walk(body, src, &inner, true, out);
+    }
+}
+
+/// Adds a module-level constant: an assignment to an UPPER_CASE name (PEP 8), for example
+/// `MAX_RETRIES = 7` or `TIMEOUT: float = 2.5`.
+fn push_constant(node: Node, src: &[u8], out: &mut ParsedFile) {
+    let Some(assignment) = named_children(node).into_iter().find(|c| c.kind() == "assignment") else { return };
+    let Some(left) = assignment.child_by_field_name("left").filter(|l| l.kind() == "identifier") else { return };
+    let name = node_text(left, src);
+    let upper = name.chars().any(|c| c.is_ascii_uppercase()) && name.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_');
+    if upper {
+        out.symbols.push(make_symbol(node, src, name, name.to_string(), SymbolKind::Constant));
     }
 }
 

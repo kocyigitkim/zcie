@@ -13,7 +13,7 @@ use serde_json::{Value, json};
 use zcie_api::{ApiError, ApiResult, Engine};
 use zcie_security::AuthContext;
 use zcie_types::api::{
-    CaptureReceipt, CorrectRequest, ForgetReceipt, HealthReport, JobResponse, LinkResponse, ProjectInfo, ProjectList,
+    CaptureReceipt, CorrectRequest, ForgetReceipt, HealthReport, JobResponse, LinkResponse, ProjectInfo, ProjectList, ProjectStatus,
     RegisterRepositoryResponse, RenameProjectRequest, TimelineResponse,
 };
 use zcie_types::{ExpandResponse, MemoryRecord, QueryResponse, TaskRecord};
@@ -44,6 +44,7 @@ pub fn router(engine: Arc<Engine>, max_payload_bytes: usize) -> Router {
         .route("/v1/projects", get(list_projects).post(ensure_project))
         .route("/v1/projects/{project}", get(show_project).delete(delete_project))
         .route("/v1/projects/{project}/rename", post(rename_project))
+        .route("/v1/projects/{project}/status", get(project_status))
         .layer(DefaultBodyLimit::max(max_payload_bytes + BODY_OVERHEAD))
         .with_state(engine)
 }
@@ -145,6 +146,10 @@ async fn show_project(State(engine): Shared, headers: HeaderMap, Path(project): 
         record.ok_or_else(|| ApiError::NotFound(format!("project {project}")))
     })
     .await
+}
+
+async fn project_status(State(engine): Shared, headers: HeaderMap, Path(project): Path<String>) -> HttpResult<Json<ProjectStatus>> {
+    with_auth(engine, headers, move |e, a| e.project_status(a, &project)).await
 }
 
 async fn rename_project(State(engine): Shared, headers: HeaderMap, Path(project): Path<String>, body: Bytes) -> HttpResult<Json<ProjectInfo>> {

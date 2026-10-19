@@ -2,7 +2,7 @@
 
 use zcie_store::{Cf, ObjectStore, Store, layout};
 use zcie_types::{
-    Classification, CommitRecord, EventEnvelope, FileRecord, MemoryRecord, MemoryStatus, Ref, ResultItem, Scope,
+    Classification, CommitRecord, EventEnvelope, FileRecord, MemoryKind, MemoryRecord, MemoryStatus, Ref, ResultItem, Scope,
     SymbolRecord, TaskRecord, truncate_chars,
 };
 
@@ -10,8 +10,8 @@ use crate::error::Result;
 
 /// Characters of a title.
 const TITLE_CHARS: usize = 160;
-/// Characters of an event snippet.
-const EVENT_SNIPPET_CHARS: usize = 500;
+/// Characters of the full text of an event or memory snippet; the planner shows a window of it.
+const EVENT_SNIPPET_CHARS: usize = 200_000;
 /// Characters of a short revision.
 const SHORT_REVISION: usize = 12;
 
@@ -41,6 +41,8 @@ fn item(entity_ref: String, kind: &str, title: String) -> ResultItem {
         score: 0.0,
         snippet: None,
         project: None,
+        context: None,
+        follow_up: None,
     }
 }
 
@@ -63,10 +65,10 @@ pub fn load_ref(store: &Store, objects: &ObjectStore, tenant: &str, value: &str)
     Ok(match parsed.kind.as_str() {
         "sym" => store.get::<SymbolRecord>(Cf::Entities, &key("sym"))?.map(|s| symbol_item(&s)),
         "file" => store.get::<FileRecord>(Cf::Entities, &key("file"))?.filter(|f| !f.deleted).map(|f| file_item(&f)),
-        "mem" => store
-            .get::<MemoryRecord>(Cf::Entities, &key("mem"))?
-            .filter(|m| m.status != MemoryStatus::Retracted)
-            .map(|m| memory_item(&m)),
+        "mem" => match store.get::<MemoryRecord>(Cf::Entities, &key("mem"))? {
+            Some(m) if m.status != MemoryStatus::Retracted => Some(memory_with_source(store, objects, tenant, &m)?),
+            _ => None,
+        },
         "task" => store.get::<TaskRecord>(Cf::Entities, &key("task"))?.map(|t| task_item(&t)),
         "commit" => store.get::<CommitRecord>(Cf::Entities, &key("commit"))?.map(|c| commit_item(&c)),
         "ev" => match zcie_store::events::get_event_by_id(store, tenant, &parsed.id)? {
@@ -105,7 +107,60 @@ pub fn memory_item(record: &MemoryRecord) -> Loaded {
     }
     out.status = Some(record.status.name().into());
     out.evidence_status = Some(format!("{}:{}", record.kind.name(), record.extractor));
+    out.context = record.context.clone();
     loaded(out, record.scope.clone(), Some(record.valid_from.clone()))
+}
+
+/// Makes the item of a memory record. If the source message is longer than the record, its text
+/// becomes the snippet, so that a reason in the next sentence ("We rejected MySQL because ...") or a
+/// passage of a long pasted document is not lost.
+fn memory_with_source(store: &Store, objects: &ObjectStore, tenant: &str, record: &MemoryRecord) -> Result<Loaded> {
+    let mut out = memory_item(record);
+    // A decision or preference is one sentence of a message; a request record keeps only the first
+    // `MAX_MEMORY_TEXT` characters of the message. Both show the full message (the planner windows it).
+    let from_message = matches!(record.kind, MemoryKind::DesignDecision | MemoryKind::Preference | MemoryKind::UserRequirement);
+    let Some(source) = record.source_event_ids.first().filter(|_| from_message) else {
+        return Ok(out);
+    };
+    let Some(event) = zcie_store::events::get_event_by_id(store, tenant, &source.0)?.filter(|e| !e.forgotten) else {
+        return Ok(out);
+    };
+    // A sentence of an assistant answer is not a fact that the user confirmed (ADR-020, D-073).
+    if event.event_type == zcie_types::EventType::AssistantMessage {
+        out.item.evidence_status = Some(ASSISTANT_STATEMENT.into());
+    }
+    let Some(text) = zcie_store::events::payload_text(objects, &event).ok().flatten() else { return Ok(out) };
+    if text.trim_end_matches(['.', ' ', '\n']).chars().count() <= record.text.trim_end_matches(['.', ' ']).chars().count() {
+        return Ok(out);
+    }
+    // A request is the message itself. A decision or preference is one sentence: it gets the text
+    // around the sentence, not the full message, so that a sentence of a long document does not
+    // match a question by the words of other parts of the document.
+    out.item.snippet = match record.kind {
+        MemoryKind::UserRequirement => Some(truncate_chars(&text, EVENT_SNIPPET_CHARS)),
+        _ => sentence_window(&text, &record.text).or(out.item.snippet),
+    };
+    Ok(out)
+}
+
+/// Evidence status of a memory record from an assistant answer.
+pub const ASSISTANT_STATEMENT: &str = "assistant_statement";
+
+/// Characters before the sentence in a sentence window.
+const WINDOW_BEFORE_CHARS: usize = 120;
+/// Characters of a sentence window (less than the query snippet window, so it is not cut again).
+const SENTENCE_WINDOW_CHARS: usize = 390;
+
+/// Returns the part of `source` around `sentence`: `WINDOW_BEFORE_CHARS` before it and the rest of
+/// `SENTENCE_WINDOW_CHARS` after its start. `None` if the source does not have the sentence.
+fn sentence_window(source: &str, sentence: &str) -> Option<String> {
+    let probe: String = sentence.trim().chars().take(60).collect();
+    let at = source.find(probe.trim_end_matches(['.', ' ']))?;
+    let before: Vec<char> = source[..at].chars().rev().take(WINDOW_BEFORE_CHARS).collect();
+    let after: String = source[at..].chars().take(SENTENCE_WINDOW_CHARS - before.len()).collect();
+    let prefix = if before.len() < source[..at].chars().count() { "… " } else { "" };
+    let suffix = if at + after.len() < source.len() { " …" } else { "" };
+    Some(format!("{prefix}{}{after}{suffix}", before.iter().rev().collect::<String>()))
 }
 
 /// Makes the item of a task.
@@ -138,4 +193,21 @@ pub fn event_item(objects: &ObjectStore, event: &EventEnvelope) -> Loaded {
         out.snippet = Some(truncate_chars(&text, EVENT_SNIPPET_CHARS));
     }
     Loaded { item: out, scope: event.scope.clone(), classification: event.classification, time: Some(event.timestamp_utc.clone()) }
+}
+
+/// Score factor of tool-run logs (`command.run`, `tool.result` events): an agent runs many commands
+/// whose text repeats the words of the task, so they would push the facts out of the results.
+const TOOL_LOG_FACTOR: f32 = 0.5;
+/// Score factor of a sentence of an assistant answer: a fact of the user ranks first (ADR-020).
+const ASSISTANT_FACTOR: f32 = 0.8;
+
+/// Score factor of the source of a candidate: tool logs and assistant statements rank lower.
+pub(crate) fn source_factor(item: &ResultItem) -> f32 {
+    if item.kind == "event" && (item.title.starts_with("command.run") || item.title.starts_with("tool.result")) {
+        TOOL_LOG_FACTOR
+    } else if item.evidence_status.as_deref() == Some(ASSISTANT_STATEMENT) {
+        ASSISTANT_FACTOR
+    } else {
+        1.0
+    }
 }

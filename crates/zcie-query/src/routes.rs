@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use zcie_graph::{Direction, TraverseOptions};
 use zcie_memory::extraction::tier_a::find_matches;
-use zcie_search::{IndexName, SearchQuery};
+use zcie_search::{IndexName, SearchHit, SearchQuery};
 use zcie_store::Batch;
 use zcie_types::{EdgeStatus, QueryClass, Relation};
 
@@ -63,7 +63,7 @@ impl QueryEngine {
         Ok(allowed.then_some(loaded))
     }
 
-    fn candidate(&self, ctx: &QueryContext, value: &str, lexical: f32, status: Option<EdgeStatus>) -> Result<Option<Candidate>> {
+    pub(crate) fn candidate(&self, ctx: &QueryContext, value: &str, lexical: f32, status: Option<EdgeStatus>) -> Result<Option<Candidate>> {
         Ok(self.load_allowed(ctx, value)?.map(|loaded| Candidate { loaded, lexical, path_status: status }))
     }
 
@@ -75,7 +75,11 @@ impl QueryEngine {
             QueryClass::Callers => self.route_callers(ctx, question),
             QueryClass::Task => {
                 let tasks = self.tasks_in(ctx, question)?;
-                let expanded = self.expand_neighbors(ctx, &tasks)?;
+                let mut expanded = self.expand_neighbors(ctx, &tasks)?;
+                // The verified chain of the task (commit, changed files, symbols): "which file did #89 change".
+                for task in &tasks {
+                    expanded.extend(self.implementation_path(ctx, &task.loaded.item.entity_ref)?);
+                }
                 Ok((tasks.into_iter().chain(expanded).collect(), None))
             }
             QueryClass::Implementation => self.route_implementation(ctx, question),
@@ -97,15 +101,25 @@ impl QueryEngine {
         Ok((out, None))
     }
 
+    /// "Who calls X": the symbols that contain a resolved call of X (D-071), verified ones first.
     fn route_callers(&self, ctx: &QueryContext, question: &str) -> Result<(Vec<Candidate>, Option<String>)> {
         let (symbols, _) = self.route_symbol(ctx, question)?;
+        let t = &self.config.tenant;
         let mut out = Vec::new();
-        for symbol in &symbols {
-            for edge in zcie_graph::edges_to(&self.store, &self.config.tenant, &symbol.loaded.item.entity_ref, Some(Relation::Calls))? {
-                out.extend(self.candidate(ctx, &edge.from, 0.9, Some(edge.status))?);
+        for found in &symbols {
+            let Some(id) = found.loaded.item.entity_ref.strip_prefix("sym:") else { continue };
+            let Some(target) = self.store.get::<zcie_types::SymbolRecord>(zcie_store::Cf::Entities, &zcie_store::layout::entity(t, "sym", id))? else { continue };
+            for caller in self.callers_of(ctx, &target, self.config.max_results * 4)? {
+                let enclosing = zcie_symbols::file_symbols(&self.store, t, &caller.file_id)?
+                    .into_iter()
+                    .filter(|s| s.symbol_id != target.symbol_id && (s.span[0]..=s.span[1]).contains(&caller.line))
+                    .min_by_key(|s| s.span[1] - s.span[0]);
+                let entity_ref = enclosing.map_or_else(|| format!("file:{}", caller.file_id), |s| format!("sym:{}", s.symbol_id));
+                let score = if caller.status == EdgeStatus::Verified { 0.9 } else { 0.6 };
+                out.extend(self.candidate(ctx, &entity_ref, score, Some(caller.status))?);
             }
         }
-        let note = out.is_empty().then(|| "CALLS edges are not available in milestone 1".to_string());
+        let note = out.is_empty().then(|| "no resolved call of this symbol".to_string());
         Ok((out, note))
     }
 
@@ -136,6 +150,11 @@ impl QueryEngine {
             out.extend(self.implementation_path(ctx, &task.loaded.item.entity_ref)?);
         }
         out.extend(tasks);
+        if out.is_empty() {
+            // No task matches ("which commit changed the fee rate"): commit messages and code can still answer.
+            let (found, _) = self.route_search(ctx, question, &[IndexName::Code, IndexName::Documents, IndexName::Conversations])?;
+            return Ok((found, Some("no task found; lexical search".into())));
+        }
         let note = out.iter().all(|c| c.loaded.item.kind == "task").then(|| "no verified implementation link found".to_string());
         Ok((out, note))
     }
@@ -210,14 +229,26 @@ impl QueryEngine {
             .into_iter()
             .filter(|h| !matches!(h.kind.as_str(), "event" | "memory") || crate::planner::text_key(&h.name) != echo)
             .collect();
-        let top = hits.first().map(|h| h.score).unwrap_or(1.0).max(f32::EPSILON);
         let mut out = Vec::new();
-        for hit in hits {
-            out.extend(self.candidate(ctx, &hit.entity_ref, hit.score / top, None)?);
+        for (entity_ref, score) in self.fused_hits(ctx, question, &hits) {
+            out.extend(self.candidate(ctx, &entity_ref, score, None)?);
         }
         let expanded = self.expand_neighbors(ctx, &out)?;
         out.extend(expanded);
         Ok((out, None))
+    }
+
+    /// Returns the lexical hits with their normalized scores; with vector search on, the lexical
+    /// and the vector hits fused by rank (ADR-011).
+    fn fused_hits(&self, ctx: &QueryContext, question: &str, hits: &[SearchHit]) -> Vec<(String, f32)> {
+        let Some(vectors) = &self.vectors else {
+            let top = hits.first().map(|h| h.score).unwrap_or(1.0).max(f32::EPSILON);
+            return hits.iter().map(|h| (h.entity_ref.clone(), h.score / top)).collect();
+        };
+        let limit = self.config.max_results * SEARCH_FACTOR;
+        let similar = vectors.search(&ctx.scope.workspace_id, question, limit);
+        let lexical: Vec<String> = hits.iter().map(|h| h.entity_ref.clone()).collect();
+        crate::fusion::fuse(&lexical, &similar)
     }
 
     /// Adds depth-1 neighbors of the top candidates.

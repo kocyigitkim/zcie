@@ -34,6 +34,8 @@ pub struct Ingest {
     pub(crate) write_lock: Mutex<()>,
     /// Job IDs that a worker runs now.
     pub(crate) running: Mutex<HashSet<String>>,
+    /// Key after the last job that the previous queue refill read (empty: start of the list).
+    pub(crate) refill_cursor: Mutex<Vec<u8>>,
     /// Tree-sitter parsers.
     pub(crate) parser: ParserPool,
 }
@@ -60,6 +62,7 @@ impl Ingest {
             event_seq: Mutex::new(event_seq),
             write_lock: Mutex::new(()),
             running: Mutex::new(HashSet::new()),
+            refill_cursor: Mutex::new(Vec::new()),
             parser: ParserPool::new(),
         }
     }

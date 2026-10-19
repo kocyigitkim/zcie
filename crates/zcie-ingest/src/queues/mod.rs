@@ -11,6 +11,25 @@ use crate::error::Result;
 use crate::ingest::Ingest;
 use crate::processors::Output;
 
+/// What a job wrote (the activity log of ADR-023).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Written {
+    /// Store keys written or deleted, the pending key included.
+    pub keys: u64,
+    /// Search index operations sent.
+    pub search_ops: u64,
+    /// Jobs that the job made.
+    pub new_jobs: u64,
+}
+
+/// The target of a job for the activity log: the path of a file job, else the target.
+fn job_target(job: &JobRecord) -> String {
+    match zcie_types::job::split_file_target(&job.target) {
+        Some((_, path)) if matches!(job.kind, JobKind::IndexFile | JobKind::DeleteFile) => path.to_string(),
+        _ => job.target.clone(),
+    }
+}
+
 /// Number of failed attempts before a job goes to the dead-letter list.
 pub const MAX_ATTEMPTS: u32 = 3;
 /// Number of stored jobs that a worker loads when the queue is empty.
@@ -22,14 +41,25 @@ impl Ingest {
         if !self.mark_running(&job) {
             return;
         }
+        let start = std::time::Instant::now();
         let result = self.run_job(&job);
         self.unmark_running(&job);
+        let ms = (start.elapsed().as_secs_f64() * 10_000.0).round() / 10.0;
+        let mut line = serde_json::json!({"op": "job", "ws": job.scope.workspace_id, "kind": job.kind, "target": job_target(&job), "ms": ms});
         match result {
-            Ok(()) => {
+            Ok(written) => {
+                line["ok"] = true.into();
+                line["keys"] = written.keys.into();
+                line["search_ops"] = written.search_ops.into();
+                line["new_jobs"] = written.new_jobs.into();
+                self.counters.record(line);
                 zcie_telemetry::Counters::inc(&self.counters.jobs_done);
                 self.refill_when_empty();
             }
             Err(error) => {
+                line["ok"] = false.into();
+                line["error"] = zcie_types::truncate_chars(&error.to_string(), 300).into();
+                self.counters.record(line);
                 zcie_telemetry::Counters::inc(&self.counters.jobs_failed);
                 self.fail_job(job, &error.to_string());
             }
@@ -57,10 +87,14 @@ impl Ingest {
     }
 
     /// Runs the handler of a job and commits its output. A job with no pending key is skipped.
-    pub fn run_job(&self, job: &JobRecord) -> Result<()> {
+    pub fn run_job(&self, job: &JobRecord) -> Result<Written> {
         let pending = layout::pending_job(self.tenant(), job.source_seq, job.job_id.as_str());
         if !self.store.exists(Cf::Jobs, &pending)? {
-            return Ok(());
+            return Ok(Written::default());
+        }
+        if !self.indexes_files_of(job)? {
+            let _guard = self.lock_write();
+            return self.commit_output(job, Output::default());
         }
         match job.kind {
             JobKind::IndexFile => {
@@ -85,6 +119,21 @@ impl Ingest {
         }
     }
 
+    /// False for a file or scan job of a folder that is not indexed (ADR-015): a folder of an
+    /// imported conversation or of a Claude Code session only maps the memory to its project.
+    fn indexes_files_of(&self, job: &JobRecord) -> Result<bool> {
+        let worktree_id = match job.kind {
+            JobKind::IndexFile | JobKind::DeleteFile => match zcie_types::job::split_file_target(&job.target) {
+                Some((worktree_id, _)) => worktree_id.to_string(),
+                None => return Ok(true),
+            },
+            JobKind::ScanRepository => job.target.clone(),
+            _ => return Ok(true),
+        };
+        let key = layout::registry(self.tenant(), "worktree", &worktree_id);
+        Ok(self.store.get::<zcie_types::WorktreeRecord>(Cf::Registry, &key)?.is_some_and(|w| w.indexed))
+    }
+
     fn dispatch(&self, job: &JobRecord) -> Result<Output> {
         match job.kind {
             JobKind::ExtractMemory => self.process_extract(job),
@@ -96,8 +145,9 @@ impl Ingest {
     }
 
     /// Writes the output, deletes the pending key, sends search operations and raises `graph_seq`.
-    fn commit_output(&self, job: &JobRecord, mut output: Output) -> Result<()> {
+    fn commit_output(&self, job: &JobRecord, mut output: Output) -> Result<Written> {
         let t = self.tenant().to_string();
+        let written = Written { keys: output.batch.len() as u64, search_ops: output.search_ops.len() as u64, new_jobs: output.new_jobs.len() as u64 };
         output.batch.delete(Cf::Jobs, layout::pending_job(&t, job.source_seq, job.job_id.as_str()));
         for new_job in &output.new_jobs {
             output.batch.put(Cf::Jobs, layout::pending_job(&t, new_job.source_seq, new_job.job_id.as_str()), new_job)?;
@@ -120,7 +170,8 @@ impl Ingest {
         for new_job in output.new_jobs {
             self.push_job(new_job);
         }
-        self.advance_graph_watermark()
+        self.advance_graph_watermark()?;
+        Ok(written)
     }
 
     /// Raises `graph_seq` to (lowest pending seq − 1), or to the canonical seq if no job is pending.
@@ -183,12 +234,21 @@ impl Ingest {
         let mut count = 0;
         let prefix = layout::pending_prefix(self.tenant());
         let scan_limit = max.saturating_mul(2).max(1);
-        for (_, job) in self.store.prefix_scan::<JobRecord>(Cf::Jobs, &prefix, scan_limit)? {
+        // The scan goes on from the last key of the previous refill, so that jobs behind a large
+        // backlog of one kind (interactive jobs behind thousands of file jobs) are reached too.
+        let mut cursor = self.refill_cursor.lock().unwrap_or_else(|e| e.into_inner());
+        let start = if cursor.is_empty() { prefix.clone() } else { cursor.clone() };
+        let items = self.store.scan_from::<JobRecord>(Cf::Jobs, &prefix, &start, scan_limit)?;
+        *cursor = match items.last() {
+            Some((key, _)) if items.len() == scan_limit => [key.as_slice(), &[0]].concat(),
+            _ => Vec::new(),
+        };
+        drop(cursor);
+        for (_, job) in items {
             if count >= max || !self.queue.has_room(1) {
                 break;
             }
-            let running = self.running.lock().unwrap_or_else(|e| e.into_inner()).contains(job.job_id.as_str());
-            if running {
+            if !self.queue.has_room_for(job.priority) || self.running.lock().unwrap_or_else(|e| e.into_inner()).contains(job.job_id.as_str()) {
                 continue;
             }
             if matches!(job.kind, JobKind::IndexFile | JobKind::DeleteFile)

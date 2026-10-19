@@ -25,6 +25,28 @@ pub struct FileIdValue {
     pub file_id: String,
 }
 
+/// Lookup value `t/"file_refs"/<file id>`: the names that a file uses and does not define, with
+/// their counts (ADR-017). The repository map joins them with the symbol definitions.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileRefsValue {
+    /// Value schema version.
+    pub v: u32,
+    /// (name, count), the most used first.
+    pub names: Vec<(String, u32)>,
+}
+
+/// Lookup value `t/"file_calls"/<file id>` → the imports and the call sites of a file (ADR-019,
+/// D-071). The query resolves the calls to definitions.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileCallsValue {
+    /// Value schema version.
+    pub v: u32,
+    /// Raw import strings of the file.
+    pub imports: Vec<String>,
+    /// Call sites in source order.
+    pub calls: Vec<zcie_types::CallSite>,
+}
+
 /// Lookup value `t/"ws_name"/<name>` → workspace ID.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkspaceIdValue {
@@ -60,6 +82,16 @@ pub struct TurnValue {
     /// Event type name.
     pub event_type: String,
     /// Event sequence.
+    pub seq: u64,
+}
+
+/// Lookup value `t/"code_seq"/<workspace>` → a counter of the file changes of a workspace. The
+/// repository map and the cached query answers change with it (ADR-017, D-078).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CodeSeqValue {
+    /// Value schema version.
+    pub v: u32,
+    /// Number of file changes so far.
     pub seq: u64,
 }
 

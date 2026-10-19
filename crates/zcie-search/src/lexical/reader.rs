@@ -6,13 +6,15 @@ use tantivy::schema::{IndexRecordOption, Value};
 use tantivy::{TantivyDocument, Term};
 
 use crate::error::Result;
-use crate::lexical::schema::{IndexName, expand_identifiers};
+use crate::lexical::schema::{IndexName, STEM_CHARS, expand_identifiers, stem_text};
 use crate::lexical::writer::SearchIndex;
 
 /// Boost of the `name` field.
 const NAME_BOOST: f32 = 3.0;
 /// Boost of the `path` field.
 const PATH_BOOST: f32 = 2.0;
+/// Boost of the stem field (lower than exact words).
+const STEM_BOOST: f32 = 0.5;
 
 /// A search request.
 #[derive(Debug, Clone)]
@@ -103,9 +105,46 @@ impl SearchIndex {
         if cleaned.trim().is_empty() {
             return None;
         }
-        let (parsed, _errors) = parser.parse_query_lenient(&cleaned);
-        Some(parsed)
+        let (exact, _errors) = parser.parse_query_lenient(&cleaned);
+        // Conversations (messages, memory, decisions) are mostly inflected natural language: there
+        // every word also matches by its stem. Code and documents use stems only for words that no
+        // index has as an exact word, so that exact identifiers keep their rank.
+        let missing = if position == IndexName::Conversations.position() { long_word_stems(&cleaned) } else { self.missing_word_stems(&cleaned) };
+        if missing.is_empty() {
+            return Some(exact);
+        }
+        let mut stem_parser = QueryParser::for_index(&self.indexes[position], vec![fields.stems]);
+        stem_parser.set_field_boost(fields.stems, STEM_BOOST);
+        let (stemmed, _errors) = stem_parser.parse_query_lenient(&missing);
+        Some(Box::new(BooleanQuery::new(vec![(Occur::Should, exact), (Occur::Should, stemmed)])))
     }
+
+    /// Returns the stems of the question words that no document of the index has as an exact word,
+    /// for example the inflected Turkish "motorun" (the text has "motor"). Only these words use the
+    /// stem field, so that a word that exists ("quaternion") keeps its exact ranking (ADR-013).
+    /// A word counts as present if any of the three indexes has it, so that an exact match in one
+    /// index is not outranked by a stem match in another.
+    fn missing_word_stems(&self, text: &str) -> String {
+        let searchers: Vec<_> = self.readers.iter().map(|r| r.searcher()).collect();
+        let fields = self.fields;
+        let absent = |word: &str| {
+            let lower = word.to_lowercase();
+            searchers.iter().all(|searcher| {
+                [fields.name, fields.body].iter().all(|f| searcher.doc_freq(&Term::from_field_text(*f, &lower)).unwrap_or(0) == 0)
+            })
+        };
+        text.split_whitespace().filter(|w| w.chars().count() > STEM_CHARS && absent(w)).map(stem_text).collect::<Vec<_>>().join(" ")
+    }
+}
+
+/// Shortest question word that the conversation search also matches by its stem. Inflected
+/// Turkish words are long ("doğruluğu", "maliyeti"); short words are mostly roots, and a short
+/// English word would collide with others of the same prefix ("attack", "attachment").
+const MIN_STEMMED_WORD_CHARS: usize = 7;
+
+/// Returns the stems of the long words of a question.
+fn long_word_stems(text: &str) -> String {
+    text.split_whitespace().filter(|w| w.chars().count() >= MIN_STEMMED_WORD_CHARS).map(stem_text).collect::<Vec<_>>().join(" ")
 }
 
 fn term_query(field: tantivy::schema::Field, value: &str) -> Box<dyn Query> {

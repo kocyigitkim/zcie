@@ -10,6 +10,7 @@ members = [
     "crates/zcie-symbols",
     "crates/zcie-memory",
     "crates/zcie-search",
+    "crates/zcie-vector",
     "crates/zcie-cache",
     "crates/zcie-context",
     "crates/zcie-ingest",
@@ -47,6 +48,7 @@ zcie-symbols = { path = "crates/zcie-symbols" }
 zcie-graph = { path = "crates/zcie-graph" }
 zcie-memory = { path = "crates/zcie-memory" }
 zcie-search = { path = "crates/zcie-search" }
+zcie-vector = { path = "crates/zcie-vector" }
 zcie-cache = { path = "crates/zcie-cache" }
 zcie-ingest = { path = "crates/zcie-ingest" }
 zcie-query = { path = "crates/zcie-query" }

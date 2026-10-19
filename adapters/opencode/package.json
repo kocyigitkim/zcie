@@ -1,0 +1,6 @@
+{
+  "name": "zcie-opencode",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test" }
+}

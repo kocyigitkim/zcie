@@ -68,4 +68,9 @@ pub struct WorktreeRecord {
     /// RFC 3339 time of the last scan.
     #[serde(default)]
     pub last_scan_utc: Option<String>,
+    /// True if the files of the folder are indexed and watched (`zcie project add`, `zcie repo
+    /// add`). False: the folder only maps conversations to its project (a folder of an imported
+    /// conversation or of a Claude Code session); no scan, no watcher (ADR-015).
+    #[serde(default)]
+    pub indexed: bool,
 }

@@ -25,6 +25,9 @@ pub struct CacheKeyParts<'a> {
     pub canonical_seq: u64,
     /// Graph watermark at query time.
     pub graph_seq: u64,
+    /// Sequence of the last file change of the workspace (`lookup: t/code_seq/<ws>`): a file
+    /// that an editor changed makes no event, so the canonical watermark does not move (D-078).
+    pub code_seq: u64,
 }
 
 /// Returns the BLAKE3 hex hash of all key parts.
@@ -34,7 +37,7 @@ pub fn cache_key(parts: &CacheKeyParts<'_>) -> String {
         hasher.update(text.as_bytes());
         hasher.update(&[0]);
     }
-    for number in [parts.policy_version, u64::from(parts.token_budget), u64::from(parts.max_results), parts.canonical_seq, parts.graph_seq] {
+    for number in [parts.policy_version, u64::from(parts.token_budget), u64::from(parts.max_results), parts.canonical_seq, parts.graph_seq, parts.code_seq] {
         hasher.update(&number.to_le_bytes());
     }
     hasher.finalize().to_hex().to_string()

@@ -6,7 +6,7 @@ use zcie_store::values::{CommitIdValue, FileIdValue};
 use zcie_store::{Batch, Cf, layout};
 use zcie_types::{CommitId, CommitRecord, EdgeStatus, Evidence, EvidenceKind, FileRecord, JobRecord, Relation, Scope, WorktreeRecord};
 
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::ingest::Ingest;
 use crate::processors::Output;
 use crate::processors::search::commit_op;
@@ -15,7 +15,8 @@ impl Ingest {
     /// Stores one commit, its `ChangedInCommit` edges and its trailer links.
     pub(crate) fn index_commit(&self, job: &JobRecord) -> Result<Output> {
         let mut output = Output::default();
-        let worktree = self.commit_worktree(&job.scope)?;
+        // No worktree: the project was deleted. The job has nothing to do.
+        let Some(worktree) = self.commit_worktree(&job.scope)? else { return Ok(output) };
         let root = Path::new(&worktree.root_path);
         let info = zcie_git::commit_info(root, &job.target)?;
         let t = self.tenant().to_string();
@@ -46,12 +47,11 @@ impl Ingest {
         Ok(output)
     }
 
-    fn commit_worktree(&self, scope: &Scope) -> Result<WorktreeRecord> {
+    fn commit_worktree(&self, scope: &Scope) -> Result<Option<WorktreeRecord>> {
         let worktrees = zcie_memory::worktrees_of_workspace(&self.store, self.tenant(), &scope.workspace_id)?;
-        worktrees
+        Ok(worktrees
             .into_iter()
-            .find(|w| Some(&w.worktree_id) == scope.worktree_id.as_ref() || Some(&w.repository_id) == scope.repository_id.as_ref())
-            .ok_or_else(|| Error::NotFound("worktree of commit".into()))
+            .find(|w| Some(&w.worktree_id) == scope.worktree_id.as_ref() || Some(&w.repository_id) == scope.repository_id.as_ref()))
     }
 
     fn link_changed_path(&self, output: &mut Output, worktree: &WorktreeRecord, scope: &Scope, path: &str, commit_ref: &str, sha: &str) -> Result<()> {

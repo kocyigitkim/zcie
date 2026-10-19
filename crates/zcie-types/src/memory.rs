@@ -39,6 +39,11 @@ pub struct MemoryRecord {
     pub extractor: String,
     /// Increments on each change.
     pub generation: u64,
+    /// The user message before the source message in the same session, for a short follow-up
+    /// message ("bunu da yap"): the search finds the follow-up by the topic of the earlier message
+    /// (contextual retrieval, ADR-013). 300 characters or fewer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<String>,
 }
 
 /// The kind of a memory record.

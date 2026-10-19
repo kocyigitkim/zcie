@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use serde_json::{Value, json};
-use zcie_api::multi::names_project;
+use zcie_api::multi::{asks_all_projects, names_project};
 use zcie_security::AuthContext;
 use zcie_tests::engine::capture_request;
 use zcie_tests::process::binary;
@@ -18,7 +18,7 @@ const LEDGER_DECISION: &str = "Remember this decision: we use Postgres 16 for th
 const ATLAS_DECISION: &str = "Remember this decision: we use Redis 7 for the atlas cache database.";
 
 fn ensure(engine: &TestEngine, name: &str, id: Option<&str>) -> ProjectInfo {
-    let request = EnsureProjectRequest { project_id: id.map(str::to_string), name: Some(name.into()), root: None };
+    let request = EnsureProjectRequest { project_id: id.map(str::to_string), name: Some(name.into()), root: None, index: false };
     engine.engine().ensure_project(&admin(), request).expect("ensure project")
 }
 
@@ -66,7 +66,7 @@ fn ts_14_01_ensure_project_makes_one_id_and_is_idempotent() {
     assert_eq!(again.name, "ledger", "an existing project keeps its name");
     let known = "proj_01M52Y8GKM6NJ53WCSMFY4W55A";
     assert_eq!(ensure(&engine, "cloned", Some(known)).project_id, known, "an ID from a cloned folder is kept");
-    let bad = EnsureProjectRequest { project_id: Some("not-an-id".into()), name: None, root: None };
+    let bad = EnsureProjectRequest { project_id: Some("not-an-id".into()), name: None, root: None, index: false };
     assert!(engine.engine().ensure_project(&admin(), bad).is_err());
 }
 
@@ -95,6 +95,83 @@ fn ts_14_04_question_that_names_a_project_reads_that_project_first() {
     assert_eq!(response.results.first().and_then(|r| r.project.as_deref()), Some("atlas"));
     assert!(texts(&response).contains("Redis"));
     assert!(response.note.as_deref().unwrap_or_default().starts_with("2 projects"));
+}
+
+#[test]
+fn ts_14_12_question_that_contains_a_project_id_reads_that_project() {
+    let engine = two_projects();
+    let atlas = engine.engine().project_info("atlas").unwrap().project_id;
+    let response = ask(&engine, &admin(), "ledger", &format!("which database does {atlas} use?"), QueryScope::Project);
+    assert_eq!(response.results.first().and_then(|r| r.project.as_deref()), Some("atlas"));
+    assert!(texts(&response).contains("Redis"));
+}
+
+#[test]
+fn ts_14_13_question_about_all_projects_reads_all_projects() {
+    let engine = two_projects();
+    assert!(asks_all_projects("Which of my projects use a database?") && asks_all_projects("Tüm projelerimde hangi veritabanı var?"));
+    assert!(!asks_all_projects("which database do we use"));
+    let response = ask(&engine, &admin(), "ledger", "which of my projects use a database", QueryScope::Project);
+    let found = labels(&response);
+    assert!(found.contains(&"ledger".to_string()) && found.contains(&"atlas".to_string()), "{found:?}");
+}
+
+#[test]
+fn ts_14_14_all_projects_query_ranks_by_specific_terms() {
+    let stems = zcie_api::relevance::stems("normalizeCurrency in src/util/currency.ts uses the projects");
+    for stem in ["norma", "curre", "src", "util"] {
+        assert!(stems.contains(stem), "{stem} in {stems:?}");
+    }
+    assert!(!stems.contains("proje") && !stems.contains("uses"), "question words are not terms");
+    let engine = two_projects();
+    ensure(&engine, "noise", None);
+    remember(&engine, "noise", "Which of my projects use the projects list? We list all projects here.");
+    engine.wait_idle();
+    let response = ask(&engine, &admin(), "ledger", "which of my projects use Redis", QueryScope::Project);
+    assert_eq!(response.results.first().and_then(|r| r.project.as_deref()), Some("atlas"), "{:?}", labels(&response));
+    assert!(!labels(&response).contains(&"noise".to_string()), "{:?}", labels(&response));
+}
+
+#[test]
+fn ts_14_15_same_client_key_in_two_projects_and_after_delete_makes_new_events() {
+    let engine = two_projects();
+    let mut first = capture_request_in("ledger", "Decision: ledger uses SQLite for tests.");
+    first.idempotency_key = "cli:s:1".into();
+    let mut second = capture_request_in("atlas", "Decision: atlas uses Deno for scripts.");
+    second.idempotency_key = "cli:s:1".into();
+    let a = engine.engine().capture_event(&admin(), first.clone()).unwrap();
+    let b = engine.engine().capture_event(&admin(), second).unwrap();
+    assert_ne!(a.event_id, b.event_id, "the key is unique per project");
+    assert!(engine.engine().capture_event(&admin(), first.clone()).unwrap().duplicate, "a replay in the same project is a duplicate");
+    engine.engine().delete_project(&admin(), "ledger").unwrap();
+    ensure(&engine, "ledger", None);
+    let again = engine.engine().capture_event(&admin(), first).unwrap();
+    assert!(!again.duplicate && again.event_id != a.event_id, "a new project with the old name stores the event");
+    engine.wait_idle();
+    let pending = zcie_store::recovery::pending_jobs(&engine.engine().store, "local").unwrap();
+    assert!(pending.is_empty(), "jobs of the deleted project end: {pending:?}");
+}
+
+#[test]
+fn ts_14_16_dead_letters_of_deleted_projects_are_removed() {
+    let engine = two_projects();
+    let store = &engine.engine().store;
+    let atlas = engine.engine().project_info("atlas").unwrap().project_id;
+    for (workspace, id) in [(atlas.as_str(), "job_dead_atlas"), ("ws_gone", "job_dead_gone")] {
+        let mut job = zcie_types::JobRecord::new(zcie_types::JobKind::IndexFile, zcie_types::Scope::default(), zcie_types::JobPriority::Background, 1, "wt_x:a.rs".into());
+        job.scope.workspace_id = workspace.into();
+        store.put_sync(zcie_store::Cf::Jobs, &zcie_store::layout::dead_job("local", id), &job).unwrap();
+    }
+    for (workspace, id) in [("ws_gone", "job_pending_gone"), ("", "job_pending_tenant")] {
+        let mut job = zcie_types::JobRecord::new(zcie_types::JobKind::IndexFile, zcie_types::Scope::default(), zcie_types::JobPriority::Background, 1, "wt_x:a.rs".into());
+        job.scope.workspace_id = workspace.into();
+        store.put_sync(zcie_store::Cf::Jobs, &zcie_store::layout::pending_job("local", 1, id), &job).unwrap();
+    }
+    assert_eq!(engine.engine().drop_orphan_jobs().unwrap(), 2, "the dead and the pending job of the missing project");
+    let pending = zcie_store::recovery::pending_jobs(store, "local").unwrap();
+    assert!(pending.iter().any(|j| j.scope.workspace_id.is_empty()), "a tenant job stays");
+    engine.engine().delete_project(&admin(), "atlas").unwrap();
+    assert_eq!(zcie_store::recovery::dead_letter_count(store, "local").unwrap(), 0);
 }
 
 #[test]
@@ -248,4 +325,16 @@ fn capture_request_in(project: &str, text: &str) -> zcie_types::api::CaptureRequ
     let mut request = capture_request("user.message", &format!("s-{project}"), Some("1"), text);
     request.workspace = project.into();
     request
+}
+
+#[test]
+fn ts_14_17_a_name_in_the_question_opens_the_capsule() {
+    let engine = TestEngine::start();
+    ensure(&engine, "ledger", None);
+    remember(&engine, "ledger", "Düzeltme: PostgreSQL 16 değil, PostgreSQL 17 kullanacağız.");
+    engine.wait_idle();
+    let response = ask(&engine, &admin(), "ledger", "Hangi PostgreSQL sürümünü kullanıyoruz? Sadece sürüm numarasını yaz.", QueryScope::Project);
+    assert!(response.match_coverage.unwrap_or(0.0) >= 0.6, "{:?}", response.match_coverage);
+    let chat = ask(&engine, &admin(), "ledger", "Hello, how are you today?", QueryScope::Project);
+    assert_eq!(chat.match_coverage, Some(0.0), "the first word of a sentence is not a name");
 }

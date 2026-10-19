@@ -9,10 +9,13 @@ pub const RECENCY_WEIGHT: f32 = 0.1;
 /// Weight of the kind score.
 pub const KIND_WEIGHT: f32 = 0.1;
 
-/// Returns the status weight: verified 1.0, inferred 0.6, candidate 0.3, other 0.5.
+/// Returns the status weight: verified 1.0, an active memory record 0.8, inferred 0.6, candidate
+/// 0.3, other 0.5 (a superseded record gets "other").
 pub fn status_weight(status: Option<&str>) -> f32 {
     match status {
         Some("verified") => 1.0,
+        Some("active") => 0.8,
+        Some("superseded") => 0.1,
         Some("inferred") => 0.6,
         Some("candidate") => 0.3,
         _ => 0.5,

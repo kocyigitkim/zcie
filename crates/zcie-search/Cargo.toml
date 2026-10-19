@@ -7,9 +7,13 @@ license.workspace = true
 [dependencies]
 zcie-types.workspace = true
 zcie-store.workspace = true
+zcie-vector.workspace = true
 tantivy.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

@@ -16,7 +16,8 @@ pub const ID_FILE: &str = ".claude/zcie_id";
 /// Project actions.
 #[derive(Debug, Subcommand)]
 pub enum ProjectAction {
-    /// Make or connect the project of a folder and write `.claude/zcie_id`.
+    /// Make or connect the project of a folder and write `.claude/zcie_id` (memory only; `add`
+    /// also indexes the files).
     Init {
         /// Project folder. Default: the Git root of the current folder, or the current folder.
         #[arg(long)]
@@ -24,6 +25,26 @@ pub enum ProjectAction {
         /// Project name. Default: the folder name.
         #[arg(long)]
         name: Option<String>,
+    },
+    /// Add a project folder: make the project, write `.claude/zcie_id`, index the folder and show
+    /// the progress until the index is complete.
+    Add {
+        /// Project folder. Default: the current folder (its Git root if it is in a repository).
+        path: Option<PathBuf>,
+        /// Project name. Default: the folder name.
+        #[arg(long)]
+        name: Option<String>,
+        /// Do not wait for the index; it goes on in the background.
+        #[arg(long)]
+        no_wait: bool,
+        /// Also add the Git repositories inside the folder (each as its own project).
+        #[arg(long)]
+        nested: bool,
+    },
+    /// Show the index state of a project (ID, name or folder). Default: the current project.
+    Status {
+        /// Project ID, name or folder.
+        project: Option<String>,
     },
     /// List all projects.
     List,
@@ -51,7 +72,9 @@ pub enum ProjectAction {
 /// Runs one project action.
 pub fn run(action: ProjectAction, client: &Client) -> anyhow::Result<()> {
     match action {
-        ProjectAction::Init { dir, name } => init(client, dir, name),
+        ProjectAction::Init { dir, name } => init(client, dir, name, false).map(|_| ()),
+        ProjectAction::Add { path, name, no_wait, nested } => super::project_add::add(client, path, name, !no_wait, nested),
+        ProjectAction::Status { project } => super::project_add::status(client, project),
         ProjectAction::List => list(client),
         ProjectAction::Show { project } => print_json(&client.project(project.as_deref().unwrap_or(client.workspace()))?),
         ProjectAction::Rename { project, name } => print_json(&client.rename_project(&project, &name)?),
@@ -61,6 +84,8 @@ pub fn run(action: ProjectAction, client: &Client) -> anyhow::Result<()> {
 }
 
 /// Finds `.claude/zcie_id` in `start` or a parent folder. Returns the project root and the ID.
+/// The search stops at a Git repository root: a repository inside another project folder is its
+/// own project.
 pub fn find_project_id(start: &Path) -> Option<(PathBuf, String)> {
     let mut folder = Some(start);
     while let Some(current) = folder {
@@ -69,6 +94,9 @@ pub fn find_project_id(start: &Path) -> Option<(PathBuf, String)> {
             if zcie_types::ids::is_project_id(&id) {
                 return Some((current.to_path_buf(), id));
             }
+        }
+        if current.join(".git").exists() {
+            return None;
         }
         folder = current.parent();
     }
@@ -83,7 +111,8 @@ pub fn write_project_id(root: &Path, id: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn project_root(dir: Option<PathBuf>) -> anyhow::Result<PathBuf> {
+/// Returns the project root of a folder: the root of its ID file, its Git root, or the folder.
+pub fn project_root(dir: Option<PathBuf>) -> anyhow::Result<PathBuf> {
     let start = match dir {
         Some(dir) => dir,
         None => std::env::current_dir()?,
@@ -99,7 +128,9 @@ fn project_root(dir: Option<PathBuf>) -> anyhow::Result<PathBuf> {
     }
 }
 
-fn init(client: &Client, dir: Option<PathBuf>, name: Option<String>) -> anyhow::Result<()> {
+/// Makes or connects the project of a folder and writes its ID file. With `index`, the files of
+/// the folder are indexed and watched from now on (ADR-015). Returns the project ID.
+pub fn init(client: &Client, dir: Option<PathBuf>, name: Option<String>, index: bool) -> anyhow::Result<String> {
     let root = project_root(dir)?;
     let existing = find_project_id(&root).map(|(_, id)| id);
     let folder = root.file_name().map(|n| n.to_string_lossy().to_string());
@@ -107,11 +138,12 @@ fn init(client: &Client, dir: Option<PathBuf>, name: Option<String>) -> anyhow::
         project_id: existing,
         name: name.or(folder),
         root: Some(root.display().to_string()),
+        index,
     };
     let info = client.ensure_project(&request)?;
     write_project_id(&root, &info.project_id)?;
     println!("project {} ({}) -> {}", info.name, info.project_id, root.join(ID_FILE).display());
-    Ok(())
+    Ok(info.project_id)
 }
 
 fn list(client: &Client) -> anyhow::Result<()> {

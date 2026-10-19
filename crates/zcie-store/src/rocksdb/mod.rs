@@ -5,7 +5,7 @@ pub mod column_families;
 use std::path::Path;
 use std::sync::Mutex;
 
-use rocksdb::{ColumnFamily, ColumnFamilyDescriptor, DB, Direction, IteratorMode, Options, WriteBatch, WriteOptions};
+use rocksdb::{BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, DB, Direction, IteratorMode, Options, WriteBatch, WriteOptions};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -68,15 +68,37 @@ impl Batch {
     }
 }
 
+/// Memory of the memtables of all column families together.
+const TOTAL_WRITE_BUFFER_BYTES: usize = 64 * 1024 * 1024;
+/// Memtable size of one column family.
+const WRITE_BUFFER_BYTES: usize = 16 * 1024 * 1024;
+/// Memtables of one column family before a write waits for a flush.
+const MAX_WRITE_BUFFERS: i32 = 2;
+/// Block cache shared by all column families.
+const BLOCK_CACHE_BYTES: usize = 32 * 1024 * 1024;
+
+/// Options of one column family: small memtables and the shared block cache.
+fn column_family_options(cache: &Cache) -> Options {
+    let mut options = Options::default();
+    options.set_write_buffer_size(WRITE_BUFFER_BYTES);
+    options.set_max_write_buffer_number(MAX_WRITE_BUFFERS);
+    let mut table = BlockBasedOptions::default();
+    table.set_block_cache(cache);
+    options.set_block_based_table_factory(&table);
+    options
+}
+
 impl Store {
     /// Opens the database with all column families. Creates missing parts.
     pub fn open(path: &Path) -> Result<Store> {
         let mut options = Options::default();
         options.create_if_missing(true);
         options.create_missing_column_families(true);
-        let descriptors = Cf::ALL
-            .iter()
-            .map(|cf| ColumnFamilyDescriptor::new(cf.name(), Options::default()));
+        // One memory limit for the memtables of all column families: a write burst (for example
+        // the first index of many repositories) flushes to disk instead of growing the memory.
+        options.set_db_write_buffer_size(TOTAL_WRITE_BUFFER_BYTES);
+        let cache = Cache::new_lru_cache(BLOCK_CACHE_BYTES);
+        let descriptors = Cf::ALL.iter().map(|cf| ColumnFamilyDescriptor::new(cf.name(), column_family_options(&cache)));
         let db = DB::open_cf_descriptors(&options, path, descriptors)?;
         Ok(Store { db, watermark_lock: Mutex::new(()) })
     }
@@ -158,6 +180,20 @@ impl Store {
             out.push((key.to_vec(), decode(&value)?));
         }
         Ok(out)
+    }
+
+    /// Counts the keys that start with `prefix` (no value is decoded).
+    pub fn count_prefix(&self, cf: Cf, prefix: &[u8]) -> Result<usize> {
+        let mode = IteratorMode::From(prefix, Direction::Forward);
+        let mut count = 0;
+        for item in self.db.iterator_cf(self.handle(cf)?, mode) {
+            let (key, _) = item?;
+            if !key.starts_with(prefix) {
+                break;
+            }
+            count += 1;
+        }
+        Ok(count)
     }
 
     /// Returns the keys that start with `prefix`, at most `limit`.

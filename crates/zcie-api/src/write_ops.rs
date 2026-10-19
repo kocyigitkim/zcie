@@ -26,7 +26,14 @@ impl Engine {
         let mut scope = self.request_scope(auth, &workspace);
         scope.repository_id = request.repository_id.clone();
         scope.worktree_id = request.git.as_ref().map(|g| g.worktree_id.clone());
-        Ok(self.ingest.capture(&scope, &request)?)
+        let start = std::time::Instant::now();
+        let receipt = self.ingest.capture(&scope, &request)?;
+        self.ingest.counters.record(serde_json::json!({
+            "op": "capture", "ws": workspace.workspace_id, "client": auth.client_name, "ms": crate::read_ops::ms(start),
+            "event_type": request.event_type, "bytes": request.payload.as_ref().map_or(0, String::len),
+            "duplicate": receipt.duplicate, "seq": receipt.seq,
+        }));
+        Ok(receipt)
     }
 
     /// Registers a repository folder and starts a full scan (`POST /v1/repositories`).
@@ -37,10 +44,19 @@ impl Engine {
         let git_available = zcie_git::is_git_repository(&root);
         let root = if git_available { zcie_git::toplevel(&root).unwrap_or(root) } else { root };
         let root_text = root.to_string_lossy().to_string();
-        let worktree = match self.find_worktree_by_root(&workspace.workspace_id, &root_text)? {
+        let mut worktree = match self.find_worktree_by_root(&workspace.workspace_id, &root_text)? {
             Some(worktree) => worktree,
             None => self.create_repository(&workspace.workspace_id, &root, git_available, request.project.as_deref())?,
         };
+        // A request never turns the index off: a hook that registers an added folder again keeps it indexed.
+        if request.index && !worktree.indexed {
+            worktree.indexed = true;
+            let key = layout::registry(self.tenant(), "worktree", &worktree.worktree_id);
+            self.store.put_sync(Cf::Registry, &key, &worktree)?;
+        }
+        if !worktree.indexed {
+            return Ok(RegisterRepositoryResponse { repository_id: worktree.repository_id, worktree_id: worktree.worktree_id, scan_job_id: String::new(), git_available });
+        }
         let mut scope = self.request_scope(auth, &workspace);
         scope.repository_id = Some(worktree.repository_id.clone());
         scope.worktree_id = Some(worktree.worktree_id.clone());
@@ -83,6 +99,7 @@ impl Engine {
             root_path: root.to_string_lossy().to_string(),
             last_scanned_head: None,
             last_scan_utc: None,
+            indexed: false,
         };
         batch.put(Cf::Registry, layout::registry(&t, "repository", &repository.repository_id), &repository)?;
         batch.put(Cf::Registry, layout::registry(&t, "worktree", &worktree.worktree_id), &worktree)?;

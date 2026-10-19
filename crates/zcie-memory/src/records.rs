@@ -32,6 +32,7 @@ pub fn new_memory(scope: &Scope, kind: MemoryKind, text: &str, confidence: f32, 
         superseded_by: None,
         extractor: TIER_A.to_string(),
         generation: 1,
+        context: None,
     }
 }
 

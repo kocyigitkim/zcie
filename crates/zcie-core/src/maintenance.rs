@@ -65,6 +65,10 @@ fn run(engine: &Engine, shutdown: &Shutdown) {
                 Ok(removed) => tracing::info!(removed, "orphan blob sweep completed"),
                 Err(error) => tracing::warn!(%error, "orphan blob sweep failed"),
             }
+            match engine.drop_orphan_jobs() {
+                Ok(removed) => tracing::info!(removed, "jobs of deleted projects removed"),
+                Err(error) => tracing::warn!(%error, "dead letter sweep failed"),
+            }
         }
     }
 }

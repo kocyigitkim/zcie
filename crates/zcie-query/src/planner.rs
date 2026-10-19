@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use zcie_cache::{CacheKeyParts, L0Cache, cache_key};
-use zcie_context::{build_capsule, clamp_budget, parse_cursor};
+use zcie_context::clamp_budget;
 use zcie_ingest::Ingest;
 use zcie_search::SearchIndex;
 use zcie_search::freshness::freshness;
@@ -46,6 +46,8 @@ pub struct QueryConfig {
     pub graph_max_fanout: usize,
     /// Lifetime of a cached "not found" response.
     pub negative_ttl: Duration,
+    /// Context-efficiency switches (ADR-017).
+    pub context: crate::capsule_rules::ContextOptions,
 }
 
 /// The authenticated request scope.
@@ -65,16 +67,25 @@ pub struct QueryEngine {
     pub(crate) cache: Arc<L0Cache>,
     pub(crate) ingest: Arc<Ingest>,
     pub(crate) config: QueryConfig,
+    pub(crate) vectors: Option<Arc<zcie_vector::Vectors>>,
+    /// File graphs of the repository map, per workspace, with the search watermark of their build.
+    pub(crate) repo_graphs: std::sync::Mutex<HashMap<String, (u64, Arc<crate::repomap::RepoGraph>)>>,
 }
 
 impl QueryEngine {
     /// Makes the read path.
     pub fn new(store: Arc<Store>, objects: Arc<ObjectStore>, search: Arc<SearchIndex>, cache: Arc<L0Cache>, ingest: Arc<Ingest>, config: QueryConfig) -> Self {
-        Self { store, objects, search, cache, ingest, config }
+        Self { store, objects, search, cache, ingest, config, vectors: None, repo_graphs: std::sync::Mutex::new(HashMap::new()) }
     }
 
-    /// Answers a query with cited evidence under the token budget.
-    pub fn run(&self, ctx: &QueryContext, request: &QueryRequest) -> Result<QueryResponse> {
+    /// Adds local vector search to the search route (ADR-011).
+    pub fn with_vectors(mut self, vectors: Option<Arc<zcie_vector::Vectors>>) -> Self {
+        self.vectors = vectors;
+        self
+    }
+
+    /// Answers a query with cited evidence under the token budget (`run` adds the trace).
+    pub(crate) fn answer(&self, ctx: &QueryContext, request: &QueryRequest) -> Result<QueryResponse> {
         if request.question.chars().count() > MAX_QUESTION_CHARS || request.question.trim().is_empty() {
             return Err(Error::Invalid("question must have 1 to 2000 characters".into()));
         }
@@ -90,17 +101,36 @@ impl QueryEngine {
             self.ingest.counters.cache_hits.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             return Ok(hit);
         }
+        if request.mode == zcie_types::QueryMode::Map {
+            return self.map_answer(ctx, &question, watermarks, budget);
+        }
+        if request.mode == zcie_types::QueryMode::Locate || crate::locate::asks_for_location(&question) {
+            return self.locate_answer(ctx, &question, watermarks, budget);
+        }
         let is_symbol = |name: &str| self.is_symbol(ctx, name);
         let class = classify(&question, request.mode, &is_symbol);
-        let (candidates, note) = self.route(ctx, class, &question)?;
-        let (candidates, overlay_hits) = check_overlay(self, candidates);
-        let ranked = dedupe_text(rank(drop_echoes(candidates, &question), class));
-        let response = self.compose(ctx, class, ranked, watermarks, overlay_hits, budget, max_results, note);
+        if let Some(listed) = self.list_all(ctx, (class, &request.question), watermarks, budget)? {
+            return Ok(listed);
+        }
+        if let Some(card) = self.overview(ctx, (class, &request.question), watermarks, budget)? {
+            return Ok(card);
+        }
+        let (ranked, note, overlay_hits) = self.ranked(ctx, class, &question)?;
+        let parts = (class, note, request.question.as_str());
+        let response = self.compose(ctx, parts, ranked, watermarks, overlay_hits, budget, max_results);
         self.store_in_cache(key, ctx, &response);
         Ok(response)
     }
 
-    fn is_symbol(&self, ctx: &QueryContext, name: &str) -> bool {
+    /// Returns the ranked candidates of a question, the note of its route and the overlay hits.
+    fn ranked(&self, ctx: &QueryContext, class: QueryClass, question: &str) -> Result<(Vec<Candidate>, Option<String>, usize)> {
+        let (mut candidates, note) = self.route(ctx, class, question)?;
+        candidates.extend(self.graph_for_class(ctx, class, question)?);
+        let (candidates, overlay_hits) = check_overlay(self, candidates);
+        Ok((crate::dedupe::dedupe_text(rank(drop_echoes(candidates, question), class, question)), note, overlay_hits))
+    }
+
+    pub(crate) fn is_symbol(&self, ctx: &QueryContext, name: &str) -> bool {
         zcie_symbols::find_by_name(&self.store, &self.config.tenant, &ctx.scope.workspace_id, name, 1)
             .map(|found| !found.is_empty())
             .unwrap_or(false)
@@ -119,33 +149,30 @@ impl QueryEngine {
             max_results: max_results as u32,
             canonical_seq: wm.canonical_seq,
             graph_seq: wm.graph_seq,
+            code_seq: self.code_seq(&ctx.scope.workspace_id),
         })
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn compose(
+    pub(crate) fn compose(
         &self,
         ctx: &QueryContext,
-        class: QueryClass,
+        (class, note, question): (QueryClass, Option<String>, &str),
         ranked: Vec<Candidate>,
         watermarks: Watermarks,
         overlay_hits: usize,
         budget: u32,
         max_results: usize,
-        note: Option<String>,
     ) -> QueryResponse {
         let answer = local_answer(class, &ranked);
         let memory_links = memory_links(&ranked, max_results);
-        let items: Vec<ResultItem> = ranked.into_iter().take(MAX_RANKED).map(|c| to_item(c, budget)).collect();
-        let answer_kind = match (&answer, items.is_empty()) {
-            (Some(_), _) => AnswerKind::Local,
-            (None, true) => AnswerKind::NotFound,
-            (None, false) => AnswerKind::Evidence,
-        };
+        let compress = self.config.context.compress;
+        let mut items: Vec<ResultItem> = ranked.into_iter().take(MAX_RANKED).map(|c| to_item(c, budget, question, compress)).collect();
+        crate::followups::add_follow_ups(&self.store, &self.objects, &self.config.tenant, &mut items);
         let base = QueryResponse {
             query_id: new_id(prefix::QUERY),
             class,
-            answer_kind,
+            answer_kind: if answer.is_some() { AnswerKind::Local } else if items.is_empty() { AnswerKind::NotFound } else { AnswerKind::Evidence },
             answer,
             results: Vec::new(),
             memory_links,
@@ -156,35 +183,15 @@ impl QueryEngine {
             truncated: false,
             cursor: None,
             note,
+            // Set before the capsule is built, so that the token budget counts it.
+            match_coverage: Some(crate::relevance::match_coverage(question, &items)),
+            capsule: None,
+            intent: None,
+            evidence: Vec::new(),
+            trace: None,
         };
+        let (base, items) = crate::capsule_rules::apply(base, items, question, self.config.context);
         self.paginate(ctx, base, items, budget, max_results, 0)
-    }
-
-    fn paginate(&self, ctx: &QueryContext, base: QueryResponse, mut items: Vec<ResultItem>, budget: u32, max_results: usize, offset: usize) -> QueryResponse {
-        let rest = if items.len() > max_results { items.split_off(max_results) } else { Vec::new() };
-        let capsule = build_capsule(base, items, budget, offset);
-        let mut response = capsule.response;
-        let mut remaining = capsule.remaining;
-        remaining.extend(rest);
-        if !remaining.is_empty() {
-            let next_offset = offset + response.results.len();
-            response.truncated = true;
-            response.cursor = Some(zcie_context::make_cursor(&response.query_id, next_offset));
-            let mut page_base = response.clone();
-            page_base.results.clear();
-            self.cache.put_page(&response.query_id, page_base, remaining, &ctx.scope.workspace_id, &ctx.auth.principal_id);
-        }
-        response
-    }
-
-    fn next_page(&self, ctx: &QueryContext, cursor: &str, budget: u32) -> Result<QueryResponse> {
-        let (query_id, offset) = parse_cursor(cursor).ok_or_else(|| Error::Invalid("bad cursor".into()))?;
-        let page = self.cache.get_page(&query_id).ok_or_else(|| Error::NotFound("cursor expired".into()))?;
-        if page.principal_id != ctx.auth.principal_id || page.workspace_id != ctx.scope.workspace_id {
-            return Err(Error::Forbidden);
-        }
-        let max_results = self.config.max_results;
-        Ok(self.paginate(ctx, page.base, page.remaining, budget, max_results, offset))
     }
 
     fn store_in_cache(&self, key: String, ctx: &QueryContext, response: &QueryResponse) {
@@ -230,8 +237,10 @@ fn task_answer(ranked: &[Candidate]) -> Option<String> {
 const ECHO_CHARS: usize = 60;
 /// Lexical bonus of a decision, preference or correction record in memory-first classes.
 const DECISION_BONUS: f32 = 0.6;
-/// Lexical penalty of a plain user-request record in memory-first classes.
-const REQUEST_PENALTY: f32 = 0.4;
+/// Share of the index score in the lexical part of the rank; the rest is the term coverage.
+const LEXICAL_SHARE: f32 = 0.3;
+/// Lexical bonus of a commit for "which commit …" questions.
+const COMMIT_BONUS: f32 = 0.3;
 
 /// Returns the comparable start of a message text. An event prefix (`user.message: ` or
 /// `user.message `) is removed.
@@ -245,30 +254,11 @@ pub(crate) fn text_key(text: &str) -> String {
 }
 
 /// Drops memory and event results that only repeat the question.
-fn drop_echoes(candidates: Vec<Candidate>, question: &str) -> Vec<Candidate> {
+pub(crate) fn drop_echoes(candidates: Vec<Candidate>, question: &str) -> Vec<Candidate> {
     let echo = text_key(question);
     candidates
         .into_iter()
         .filter(|c| !matches!(c.loaded.item.kind.as_str(), "memory" | "event") || text_key(&c.loaded.item.title) != echo)
-        .collect()
-}
-
-/// Keeps one result per text (repeated messages and their memory records). A memory record is
-/// kept before the event it came from, because it carries status and provenance.
-fn dedupe_text(ranked: Vec<Candidate>) -> Vec<Candidate> {
-    let memory_texts: std::collections::HashSet<String> = ranked
-        .iter()
-        .filter(|c| c.loaded.item.kind == "memory")
-        .map(|c| text_key(&c.loaded.item.title))
-        .collect();
-    let mut seen = std::collections::HashSet::new();
-    ranked
-        .into_iter()
-        .filter(|c| match c.loaded.item.kind.as_str() {
-            "event" => !memory_texts.contains(&text_key(&c.loaded.item.title)),
-            "memory" => seen.insert(text_key(&c.loaded.item.title)),
-            _ => true,
-        })
         .collect()
 }
 
@@ -277,23 +267,36 @@ fn is_decision(candidate: &Candidate) -> bool {
     ["design_decision", "preference", "correction", "constraint"].iter().any(|k| label.starts_with(k))
 }
 
-fn rank(candidates: Vec<Candidate>, class: QueryClass) -> Vec<Candidate> {
+/// Lexical bonus by query class: decisions first for history questions, commits first for
+/// "which commit …" questions.
+/// The decision bonus is scaled by the term coverage of the decision: a decision that does not
+/// match the question gets no bonus (it must not push the answer out). Requests (what the user
+/// said) have no penalty: "what did the user want" questions are answered by them (ADR-013).
+fn class_bonus(class: QueryClass, candidate: &Candidate, coverage: f32) -> f32 {
     let memory_first = matches!(class, QueryClass::Timeline | QueryClass::Task);
+    match (memory_first, is_decision(candidate)) {
+        (true, true) => DECISION_BONUS * coverage,
+        _ if class == QueryClass::Implementation && candidate.loaded.item.kind == "commit" => COMMIT_BONUS,
+        _ => 0.0,
+    }
+}
+
+pub(crate) fn rank(candidates: Vec<Candidate>, class: QueryClass, question: &str) -> Vec<Candidate> {
+    let memory_first = matches!(class, QueryClass::Timeline | QueryClass::Task);
+    let terms = crate::relevance::stems(question);
     let now = time_now();
     let mut best: HashMap<String, Candidate> = HashMap::new();
     for mut candidate in candidates {
-        let status = candidate.path_status.map(|s| s.name()).or(candidate.loaded.item.status.as_deref());
+        // A corrected, disputed or retracted record keeps its own status, whatever path found it (ADR-020).
+        let own = candidate.loaded.item.status.clone().filter(|s| matches!(s.as_str(), "superseded" | "disputed" | "retracted"));
+        let status = own.as_deref().or(candidate.path_status.map(|s| s.name())).or(candidate.loaded.item.status.as_deref());
         let age_days = candidate.loaded.time.as_deref().and_then(parse_utc_seconds).map(|t| (now - t) as f32 / 86_400.0).unwrap_or(30.0);
-        let label = candidate.loaded.item.evidence_status.clone().unwrap_or_default();
-        let bonus = match (memory_first, is_decision(&candidate), label.starts_with("user_requirement")) {
-            (true, true, _) => DECISION_BONUS,
-            (true, false, true) => -REQUEST_PENALTY,
-            _ => 0.0,
-        };
-        let lexical = (candidate.lexical + bonus).clamp(0.0, 1.0);
-        let value = score(lexical, status_weight(status), recency_weight(age_days), kind_weight(&candidate.loaded.item.kind, memory_first));
+        let coverage = crate::relevance::item_coverage(&terms, question, &candidate.loaded.item);
+        let bonus = class_bonus(class, &candidate, coverage);
+        let lexical = (LEXICAL_SHARE * candidate.lexical + (1.0 - LEXICAL_SHARE) * coverage + bonus).clamp(0.0, 1.0);
+        let value = score(lexical, status_weight(status), recency_weight(age_days), kind_weight(&candidate.loaded.item.kind, memory_first)) * crate::items::source_factor(&candidate.loaded.item);
         candidate.loaded.item.score = (value * 1000.0).round() / 1000.0;
-        if let Some(path_status) = candidate.path_status {
+        if let Some(path_status) = candidate.path_status.filter(|_| own.is_none()) {
             candidate.loaded.item.status = Some(path_status.name().to_string());
         }
         let key = candidate.loaded.item.entity_ref.clone();
@@ -314,11 +317,19 @@ fn time_now() -> i64 {
         .unwrap_or(0)
 }
 
-fn to_item(candidate: Candidate, budget: u32) -> ResultItem {
+fn to_item(candidate: Candidate, budget: u32, question: &str, compress: bool) -> ResultItem {
     let mut item = candidate.loaded.item;
     let full_text = matches!(item.kind.as_str(), "memory" | "event");
     if budget < L1_BUDGET && !full_text {
         item.snippet = None;
+    }
+    // A long text keeps the sentences that the question needs (ADR-017); without compression, the
+    // window with the most question terms.
+    if full_text || item.kind == "file" {
+        item.snippet = item.snippet.map(|s| match compress {
+            true => crate::compress::compress(&s, question, crate::compress::MAX_ITEM_CHARS),
+            false => crate::relevance::best_window(&s, question, crate::relevance::SNIPPET_WINDOW_CHARS),
+        });
     }
     item
 }

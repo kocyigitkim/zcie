@@ -13,6 +13,7 @@ zcie-telemetry.workspace = true
 zcie-fs.workspace = true
 zcie-memory.workspace = true
 zcie-search.workspace = true
+zcie-vector.workspace = true
 zcie-cache.workspace = true
 zcie-ingest.workspace = true
 zcie-query.workspace = true

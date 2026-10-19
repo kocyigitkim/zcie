@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::{Error, Result};
 
 /// Sections that environment variables `ZCIE_<SECTION>_<KEY>` can change.
-const SECTIONS: [&str; 8] = ["server", "storage", "ingest", "index", "query", "cache", "security", "capture"];
+const SECTIONS: [&str; 10] = ["server", "storage", "ingest", "index", "query", "cache", "security", "capture", "vector", "context"];
 
 /// `[server]`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -150,6 +150,25 @@ impl Default for CaptureSection {
     }
 }
 
+/// `[vector]` (ADR-011).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct VectorSection {
+    /// Use local vector search if the model folder exists.
+    pub enabled: bool,
+    /// Model folder name under `<home>/models/`.
+    pub model: String,
+    /// Lowest cosine similarity of a vector hit. Default: the value of the model
+    /// (`zcie_vector::default_min_similarity`).
+    pub min_similarity: Option<f32>,
+}
+
+impl Default for VectorSection {
+    fn default() -> Self {
+        Self { enabled: true, model: zcie_vector::DEFAULT_MODEL.into(), min_similarity: None }
+    }
+}
+
 /// The full `engine.toml`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -170,6 +189,31 @@ pub struct EngineConfig {
     pub security: SecuritySection,
     /// `[capture]`.
     pub capture: CaptureSection,
+    /// `[vector]`.
+    pub vector: VectorSection,
+    /// `[context]`.
+    pub context: ContextSection,
+}
+
+/// `[context]` (ADR-017): the context-efficiency behavior of the query engine. Each switch turns
+/// one change of phase P4 off, so that a benchmark can compare it on and off.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ContextSection {
+    /// No duplicates, no capsule for short generic prompts, budgets per class (D-056).
+    pub capsule_rules: bool,
+    /// Token budget of the repository map; 0 turns the map off (D-058).
+    pub repo_map_budget: u32,
+    /// Personalized PageRank over the graph for multi-hop questions (D-060).
+    pub graph_rank: bool,
+    /// Extractive compression of snippets (D-061).
+    pub compress: bool,
+}
+
+impl Default for ContextSection {
+    fn default() -> Self {
+        Self { capsule_rules: true, repo_map_budget: 500, graph_rank: true, compress: true }
+    }
 }
 
 impl EngineConfig {

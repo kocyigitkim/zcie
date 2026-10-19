@@ -166,3 +166,136 @@ fn decision_is_found_among_many_similar_messages() {
     let top: Vec<&str> = response.results.iter().take(3).map(|r| r.title.as_str()).collect();
     assert!(top.iter().any(|t| t.contains("raise the merge threshold to 12")), "{top:?}");
 }
+
+#[test]
+fn refs_in_a_long_pasted_document_make_no_tasks() {
+    let engine = TestEngine::start();
+    let document = format!("<pasted_content id=\"1\">Spec. Example: fix #89 and STE-100. {}</pasted_content>", "Details of the design. ".repeat(120));
+    engine.capture("user.message", "s-doc", Some("1"), &document);
+    engine.capture("user.message", "s-doc", Some("2"), "Fix #90 weapon socket");
+    engine.wait_idle();
+    let tasks = engine.engine().store.prefix_scan::<zcie_types::TaskRecord>(zcie_store::Cf::Entities, &zcie_store::layout::entity_prefix("local", "task"), 100).unwrap();
+    let refs: Vec<String> = tasks.into_iter().filter_map(|(_, t)| t.external_ref).collect();
+    assert_eq!(refs, ["#90"], "only the short request makes a task");
+}
+
+#[test]
+fn plain_correction_message_supersedes_the_old_statement() {
+    let engine = TestEngine::start();
+    engine.capture("user.message", "s-c1", Some("1"), "Veritabanı olarak PostgreSQL 16 kullanıyoruz; MySQL'i reddettik.");
+    engine.capture("user.message", "s-c1", Some("2"), "Rate limit dakikada 600 istek olacak.");
+    engine.wait_idle();
+    engine.capture("user.message", "s-c2", Some("1"), "Düzeltme: PostgreSQL 16 değil, PostgreSQL 17 kullanacağız.");
+    engine.wait_idle();
+    let records = engine.engine().store.prefix_scan::<zcie_types::MemoryRecord>(zcie_store::Cf::Entities, &zcie_store::layout::entity_prefix("local", "mem"), 100).unwrap();
+    let status = |needle: &str| records.iter().find(|(_, r)| r.text.starts_with(needle)).map(|(_, r)| r.status);
+    assert_eq!(status("Veritabanı olarak PostgreSQL 16"), Some(zcie_types::MemoryStatus::Superseded));
+    assert_eq!(status("Rate limit dakikada 600"), Some(zcie_types::MemoryStatus::Active), "an unrelated statement stays");
+    assert_eq!(status("Düzeltme: PostgreSQL 16 değil"), Some(zcie_types::MemoryStatus::Active));
+    let response = engine.query("Hangi PostgreSQL sürümünü kullanıyoruz?", 1000);
+    let first_memory = response.results.iter().find(|r| r.kind == "memory").map(|r| r.title.clone()).unwrap_or_default();
+    assert!(first_memory.contains("17"), "{first_memory}");
+}
+
+#[test]
+fn list_all_decisions_returns_every_current_statement() {
+    let engine = TestEngine::start();
+    let facts = ["Tutarlar kuruş cinsinden i64.", "Kod incelemesini Elif yapıyor.", "Rate limit dakikada 600 istek.", "Sürümler her ayın ilk salı çıkıyor.", "Ödeme sağlayıcısı İyzico.", "Loglarda e-posta maskeleme zorunlu.", "Doc comment'ler İngilizce.", "Gecikme faizi 2.25 olacak."];
+    for (i, fact) in facts.iter().enumerate() {
+        engine.capture("user.message", "s-list", Some(&format!("{i}")), fact);
+    }
+    engine.capture("user.message", "s-list", Some("20"), "Düzeltme: rate limit 600 değil, dakikada 900 istek.");
+    engine.capture("user.message", "s-list", Some("21"), "Hangi PostgreSQL sürümünü kullanıyoruz?");
+    engine.wait_idle();
+    let response = engine.query("Bu projede verdiğimiz bütün kararları ve kuralları madde madde listele.", 250);
+    let titles: Vec<&str> = response.results.iter().map(|r| r.title.as_str()).collect();
+    assert!(response.note.as_deref().unwrap_or_default().starts_with(zcie_query::listing::LIST_NOTE), "{:?}", response.note);
+    for needle in ["i64", "Elif", "900", "salı", "İyzico", "maskeleme", "İngilizce", "2.25"] {
+        assert!(titles.iter().any(|t| t.contains(needle)), "{needle} is missing: {titles:?}");
+    }
+    assert!(!titles.iter().any(|t| t.starts_with("Rate limit dakikada 600")), "the corrected statement is not listed");
+    assert!(!titles.iter().any(|t| t.contains('?')), "stored questions are not listed");
+}
+
+#[test]
+fn follow_up_message_is_found_by_the_topic_of_the_message_before_it() {
+    let engine = TestEngine::start();
+    engine.capture("user.message", "s-f", Some("1"), "Claude Code araç tanımları her istekte çok token harcıyor.");
+    engine.capture("user.message", "s-other", Some("1"), "Loglarda e-posta adresleri maskelenmeli.");
+    engine.capture("user.message", "s-f", Some("2"), "Bunu Claude yine otomatik yükleyebilsin fakat maliyet artmasın.");
+    engine.wait_idle();
+    let records = engine.engine().store.prefix_scan::<zcie_types::MemoryRecord>(zcie_store::Cf::Entities, &zcie_store::layout::entity_prefix("local", "mem"), 100).unwrap();
+    let context = |needle: &str| records.iter().find(|(_, r)| r.text.starts_with(needle)).and_then(|(_, r)| r.context.clone());
+    assert_eq!(context("Bunu Claude").as_deref(), Some("Claude Code araç tanımları her istekte çok token harcıyor."), "the message before it in the same session");
+    assert_eq!(context("Claude Code araç"), None, "the first message of a session has no context");
+    assert_eq!(context("Loglarda"), None);
+    let response = engine.query("Kullanıcı araç tanımları konusunda ne istedi?", 1000);
+    let follow_up = response.results.iter().find(|r| r.title.starts_with("Bunu Claude")).expect("the follow-up message is found by its topic");
+    assert!(follow_up.context.as_deref().is_some_and(|c| c.contains("araç tanımları")));
+}
+
+#[test]
+fn context_backfill_fills_records_stored_before_the_context_existed() {
+    let engine = TestEngine::start();
+    engine.capture("user.message", "s-b", Some("1"), "Vektör araması çok dilli olmalı.");
+    engine.capture("user.message", "s-b", Some("2"), "Bunu varsayılan yap.");
+    engine.wait_idle();
+    let store = &engine.engine().store;
+    let prefix = zcie_store::layout::entity_prefix("local", "mem");
+    let (key, mut record) = store.prefix_scan::<zcie_types::MemoryRecord>(zcie_store::Cf::Entities, &prefix, 100).unwrap().into_iter().find(|(_, r)| r.text.starts_with("Bunu")).unwrap();
+    record.context = None;
+    store.put_sync(zcie_store::Cf::Entities, &key, &record).unwrap();
+    assert_eq!(zcie_memory::backfill_context(store, &engine.engine().objects, T).unwrap(), 0, "the migration ran at startup already");
+    let mut batch = Batch::new();
+    batch.delete(zcie_store::Cf::Registry, zcie_store::layout::migration(T, "follow_up_context_v2"));
+    store.write_batch(batch, true).unwrap();
+    assert_eq!(zcie_memory::backfill_context(store, &engine.engine().objects, T).unwrap(), 1);
+    let stored: zcie_types::MemoryRecord = store.get(zcie_store::Cf::Entities, &key).unwrap().unwrap();
+    assert_eq!(stored.context.as_deref(), Some("Vektör araması çok dilli olmalı."));
+}
+
+#[test]
+fn shell_commands_typed_with_an_exclamation_mark_are_not_requests() {
+    let engine = TestEngine::start();
+    engine.capture("user.message", "s-sh", Some("1"), "Önbellek süresi 10 dakika olmalı.");
+    engine.capture("user.message", "s-sh", Some("2"), "! zcie doctor --fix");
+    engine.capture("user.message", "s-sh", Some("3"), "Bunu 5 dakikaya düşür.");
+    engine.wait_idle();
+    let records = engine.engine().store.prefix_scan::<zcie_types::MemoryRecord>(zcie_store::Cf::Entities, &zcie_store::layout::entity_prefix("local", "mem"), 100).unwrap();
+    assert!(!records.iter().any(|(_, r)| r.text.starts_with('!')), "no record for a shell command");
+    let follow_up = records.iter().find(|(_, r)| r.text.starts_with("Bunu")).map(|(_, r)| r.context.clone()).unwrap();
+    assert_eq!(follow_up.as_deref(), Some("Önbellek süresi 10 dakika olmalı."), "the shell command is skipped as context");
+}
+
+#[test]
+fn a_sentence_of_a_long_document_does_not_match_by_other_parts_of_the_document() {
+    let engine = TestEngine::start();
+    let filler = "Bu bölüm performans hedeflerini anlatır ve ölçüm yöntemini açıklar. ".repeat(30);
+    let document = format!("<pasted_content id=\"1\">\nKurallar:\nNever fabricate missing relations.\n{filler}\nGeliştirme sırasında benchmark ile doğrulayacağımız hedefler vardır. Kullanıcı soru listesi tutar.\n</pasted_content>");
+    engine.capture("user.message", "s-doc", Some("1"), &document);
+    engine.capture("user.message", "s-ask", Some("1"), "devam et. bana soru sorma, best practice seç.");
+    engine.wait_idle();
+    let response = engine.query("Kullanıcı geliştirme sırasında kendisine soru sorulmasını istiyor mu?", 1000);
+    let memories: Vec<&str> = response.results.iter().filter(|r| r.kind == "memory").map(|r| r.title.as_str()).collect();
+    let rank = |needle: &str| memories.iter().position(|t| t.contains(needle));
+    assert!(rank("soru sorma").is_some_and(|ask| rank("Never fabricate").is_none_or(|never| ask < never)), "{memories:?}");
+    let never = response.results.iter().find(|r| r.title.starts_with("Never fabricate"));
+    assert!(never.is_none_or(|r| r.snippet.as_deref().is_none_or(|s| s.chars().count() <= 400)), "a sentence record shows the text around it");
+}
+
+#[test]
+fn a_top_request_shows_the_next_short_messages_of_its_session() {
+    let engine = TestEngine::start();
+    engine.capture("user.message", "s-next", Some("1"), "Bu toolların hepsi context'te bilinmeli fakat araç tanımları minimum token harcamalı.");
+    engine.capture("user.message", "s-next", Some("2"), "Peki toollar otomatik mi çalışıyor?");
+    engine.capture("user.message", "s-next", Some("3"), "Peki şunu istiyorum: Claude bunu yine otomatik yükleyebilsin fakat maliyet artmasın.");
+    engine.capture("user.message", "s-next", Some("4"), &"Yeni konu: uzun bir belge. ".repeat(40));
+    engine.wait_idle();
+    let response = engine.query("Kullanıcı araç tanımları ve token konusunda ne istedi?", 1000);
+    let first = response.results.iter().find(|r| r.title.starts_with("Bu toolların")).expect("the request");
+    let next = first.follow_up.as_deref().unwrap_or_default();
+    // A next message that the response already shows as a result is not repeated (ADR-017).
+    let shown = |text: &str| next.contains(text) || response.results.iter().any(|r| !std::ptr::eq(r, first) && r.title.contains(text));
+    assert!(shown("otomatik mi") && next.contains("otomatik yükleyebilsin"), "{next}");
+    assert!(!next.contains("Yeni konu"), "a long message is not a follow-up");
+}

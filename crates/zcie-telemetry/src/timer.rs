@@ -1,6 +1,9 @@
 //! Simple timers and counters.
 
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
+
+use crate::activity::ActivityLog;
 use std::time::Instant;
 
 /// Measures the duration of an operation. Logs it at `debug` level on drop.
@@ -41,12 +44,21 @@ pub struct Counters {
     pub queries: AtomicU64,
     /// L0 cache hits.
     pub cache_hits: AtomicU64,
+    /// The activity log (ADR-023); set at startup, none in tests.
+    pub activity: OnceLock<ActivityLog>,
 }
 
 impl Counters {
     /// Adds one to a counter.
     pub fn inc(counter: &AtomicU64) {
         counter.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Appends one record to the activity log, if there is one.
+    pub fn record(&self, value: serde_json::Value) {
+        if let Some(log) = self.activity.get() {
+            log.record(value);
+        }
     }
 
     /// Reads a counter.

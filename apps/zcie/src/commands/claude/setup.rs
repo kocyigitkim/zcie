@@ -81,9 +81,9 @@ fn apply(config: &mut serde_json::Value, manifest: &mut Manifest, args: &SetupAr
     }
     settings::remove(config, &Manifest { hooks_added: manifest.hooks_added.clone(), ..Manifest::default() });
     manifest.hooks_added.clear();
-    for spec in hooks::profile(!args.no_capture, !args.no_inject, !args.no_guards, !args.no_lean) {
+    for spec in hooks::profile(!args.no_capture, !args.no_inject, !args.no_guards, !args.no_lean, !args.no_check) {
         let command = hook_dir.join(spec.script).display().to_string();
-        settings::add_hook(config, spec.event, spec.matcher, &command, manifest);
+        settings::add_hook(config, (spec.event, spec.matcher), &command, spec.timeout, manifest);
     }
 }
 
@@ -95,6 +95,12 @@ fn env_values(args: &SetupArgs, settings_file: &str, key_file: &Path, url: &str)
     ];
     if url != zcie_sdk::DEFAULT_ENDPOINT {
         env.push(("ZCIE_URL", url.to_string()));
+    }
+    if let Some(budget) = args.budget {
+        env.push(("ZCIE_INJECT_BUDGET", budget.to_string()));
+    }
+    if args.no_cross_project {
+        env.push(("ZCIE_CROSS_PROJECT", "false".to_string()));
     }
     if args.cache_5m {
         env.push(("FORCE_PROMPT_CACHING_5M", "1".to_string()));
@@ -111,7 +117,7 @@ fn folder_name(path: &Path) -> String {
 
 /// Makes the Claude Code API key file if it does not exist (read and write, all workspaces).
 /// An existing key gets access to `workspace` if it does not have it.
-fn ensure_key(home: &Path, key_file: &Path, workspace: &str) -> anyhow::Result<()> {
+pub(crate) fn ensure_key(home: &Path, key_file: &Path, workspace: &str) -> anyhow::Result<()> {
     if let Ok(existing) = std::fs::read_to_string(key_file)
         && !existing.trim().is_empty()
     {
@@ -167,7 +173,7 @@ fn reload_daemon(home: &Path) {
 
 /// Makes or connects the project of the folder and writes `.claude/zcie_id` (ADR-009).
 /// Returns a short result text.
-fn register(url: &str, key_file: &Path, name: &str, project: &Path) -> Option<String> {
+pub(crate) fn register(url: &str, key_file: &Path, name: &str, project: &Path) -> Option<String> {
     let key = std::fs::read_to_string(key_file).ok()?.trim().to_string();
     let client = Client::new(url, &key, name);
     let existing = crate::commands::project::find_project_id(project).map(|(_, id)| id);
@@ -175,6 +181,7 @@ fn register(url: &str, key_file: &Path, name: &str, project: &Path) -> Option<St
         project_id: existing,
         name: Some(name.to_string()),
         root: Some(project.display().to_string()),
+        index: false,
     };
     match client.ensure_project(&request) {
         Ok(info) => match crate::commands::project::write_project_id(project, &info.project_id) {

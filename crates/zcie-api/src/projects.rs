@@ -28,7 +28,11 @@ impl Engine {
                 None => self.create_workspace(auth, &name, Some(id))?,
             },
             Some(id) => return Err(ApiError::InvalidRequest(format!("{id} is not a valid project ID"))),
-            None => self.create_workspace(auth, &name, Some(&zcie_types::ids::new_id(zcie_types::ids::prefix::PROJECT)))?,
+            // A folder that is already a root of a project (for example made by `zcie import claude`) keeps it.
+            None => match self.project_by_root(auth, request.root.as_deref())? {
+                Some(record) => record,
+                None => self.create_workspace(auth, &name, Some(&zcie_types::ids::new_id(zcie_types::ids::prefix::PROJECT)))?,
+            },
         };
         if !auth.allows_workspace(&record.name) && !auth.allows_workspace(&record.workspace_id) {
             return Err(ApiError::Forbidden(format!("project {}", record.workspace_id)));
@@ -37,10 +41,23 @@ impl Engine {
             self.rename_project(auth, &record.workspace_id, &name)?;
         }
         if let Some(root) = &request.root {
-            let registration = RegisterRepositoryRequest { workspace: record.workspace_id.clone(), path: root.clone(), project: None };
+            let registration = RegisterRepositoryRequest { workspace: record.workspace_id.clone(), path: root.clone(), project: None, index: request.index };
             self.register_repository(auth, registration)?;
         }
         self.project_info(&record.workspace_id)
+    }
+
+    /// Returns the permitted project that has `root` as a root folder.
+    fn project_by_root(&self, auth: &AuthContext, root: Option<&str>) -> ApiResult<Option<WorkspaceRecord>> {
+        let Some(root) = root else { return Ok(None) };
+        let wanted = std::fs::canonicalize(root).map(|p| p.display().to_string()).unwrap_or_else(|_| root.to_string());
+        for record in self.permitted_projects(auth)? {
+            let worktrees = zcie_memory::worktrees_of_workspace(&self.store, self.tenant(), &record.workspace_id)?;
+            if worktrees.iter().any(|w| w.root_path == wanted || w.root_path == root) {
+                return Ok(Some(record));
+            }
+        }
+        Ok(None)
     }
 
     /// Returns one project with its root folders.
@@ -110,7 +127,43 @@ impl Engine {
         self.forget(auth, forget)?;
         self.remove_registry(&record)?;
         self.cache.invalidate_workspace(&record.workspace_id);
+        self.drop_orphan_jobs()?;
         Ok(info)
+    }
+
+    /// Removes pending and failed jobs of projects that no longer exist; they can never do work.
+    /// Jobs with no workspace (tenant jobs such as the search rebuild) stay. Returns the count.
+    pub fn drop_orphan_jobs(&self) -> ApiResult<usize> {
+        let t = self.tenant().to_string();
+        let keep = |workspace: &str| {
+            workspace.is_empty() || self.store.exists(Cf::Registry, &layout::registry(&t, "workspace", workspace)).unwrap_or(true)
+        };
+        let dead = zcie_store::recovery::drop_dead_letters(&self.store, &t, keep)?;
+        let pending = zcie_store::recovery::drop_pending_jobs(&self.store, &t, keep)?;
+        Ok(dead + pending)
+    }
+
+    /// Deletes the pending file and scan jobs of folders that are not indexed (ADR-015): before
+    /// this rule, each folder of an imported conversation was scanned and watched.
+    pub fn drop_unindexed_file_jobs(&self) -> ApiResult<usize> {
+        let t = self.tenant().to_string();
+        let prefix = layout::registry_prefix(&t, "worktree");
+        let indexed: std::collections::HashSet<String> = self
+            .store
+            .prefix_scan::<zcie_types::WorktreeRecord>(Cf::Registry, &prefix, MAX_PROJECTS)?
+            .into_iter()
+            .filter(|(_, w)| w.indexed)
+            .map(|(_, w)| w.worktree_id)
+            .collect();
+        let keep = |job: &zcie_types::JobRecord| {
+            let worktree = match job.kind {
+                zcie_types::JobKind::IndexFile | zcie_types::JobKind::DeleteFile => zcie_types::job::split_file_target(&job.target).map(|(w, _)| w),
+                zcie_types::JobKind::ScanRepository => Some(job.target.as_str()),
+                _ => return true,
+            };
+            worktree.is_some_and(|w| indexed.contains(w))
+        };
+        Ok(zcie_store::recovery::drop_pending_where(&self.store, &t, keep)?)
     }
 
     fn remove_registry(&self, record: &WorkspaceRecord) -> ApiResult<()> {

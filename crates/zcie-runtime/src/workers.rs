@@ -22,16 +22,20 @@ pub struct WorkerPool {
 }
 
 impl WorkerPool {
-    /// Starts `count` workers that take jobs from `queue` and call `handler`.
+    /// Starts `count` workers that take jobs from `queue` and call `handler`. With two or more
+    /// workers, worker 0 takes interactive jobs only: a captured message is processed at once even
+    /// while the other workers index a large repository (slow background jobs).
     pub fn start(count: usize, queue: Arc<JobQueue>, shutdown: Shutdown, handler: JobHandler) -> Result<WorkerPool> {
         let mut handles = Vec::with_capacity(count);
-        for index in 0..count.max(1) {
+        let count = count.max(1);
+        for index in 0..count {
             let queue = Arc::clone(&queue);
             let shutdown = shutdown.clone();
             let handler = Arc::clone(&handler);
+            let interactive_only = index == 0 && count > 1;
             let handle = std::thread::Builder::new()
                 .name(format!("zcie-worker-{index}"))
-                .spawn(move || worker_loop(&queue, &shutdown, &handler))
+                .spawn(move || worker_loop(&queue, &shutdown, &handler, interactive_only))
                 .map_err(|e| Error::Spawn(e.to_string()))?;
             handles.push(handle);
         }
@@ -48,9 +52,10 @@ impl WorkerPool {
     }
 }
 
-fn worker_loop(queue: &JobQueue, shutdown: &Shutdown, handler: &JobHandler) {
+fn worker_loop(queue: &JobQueue, shutdown: &Shutdown, handler: &JobHandler, interactive_only: bool) {
     while !shutdown.is_triggered() {
-        if let Some(job) = queue.pop(POLL_INTERVAL) {
+        let job = if interactive_only { queue.pop_interactive(POLL_INTERVAL) } else { queue.pop(POLL_INTERVAL) };
+        if let Some(job) = job {
             handler(job);
         }
     }

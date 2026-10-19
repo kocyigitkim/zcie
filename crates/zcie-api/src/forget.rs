@@ -114,6 +114,12 @@ impl Engine {
             }
             receipt.events_removed += 1;
         }
+        // A task that a forgotten message made is forgotten too (its title is the message).
+        for task_ref in zcie_memory::retention::delete_tasks_of_events(&self.store, batch, &t, &ids)? {
+            receipt.records_retracted += 1;
+            receipt.edges_removed += zcie_graph::delete_all_edges_of(&self.store, batch, &t, &task_ref)? as u64;
+            deletes.push(task_ref);
+        }
         for memory_ref in zcie_memory::retention::retract_records_of_events(&self.store, batch, &t, &ids)? {
             receipt.records_retracted += 1;
             receipt.edges_removed += zcie_graph::delete_all_edges_of(&self.store, batch, &t, &memory_ref)? as u64;

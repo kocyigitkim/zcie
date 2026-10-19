@@ -12,9 +12,10 @@ pub mod retention;
 pub mod tasks;
 pub mod timeline;
 
-pub use capture::{find_file_ref, link_file_change_to_turn, resolve_worktree_path, worktrees_of_workspace};
+pub use capture::{session_user_messages, find_file_ref, link_file_change_to_turn, resolve_worktree_path, worktrees_of_workspace};
 pub use conflict::{correct_memory, mark_contradiction, retract};
 pub use error::{Error, Result};
+pub use extraction::context::{backfill_context, retract_shell_inputs};
 pub use extraction::{Outcome, file_event_path, process_event};
 pub use records::{backfill_decision_index, decisions_of_workspace, get_memory, memories_of_event};
 pub use tasks::{create_task, find_by_external_ref, get_task, set_task_state};

@@ -20,6 +20,8 @@ const DEFAULT_EXPAND_BUDGET: u32 = 1500;
 const EVIDENCE_LINES: usize = 12;
 /// Characters of an event payload at the source level.
 const EVENT_SOURCE_CHARS: usize = 4000;
+/// Largest file that an expansion reads from disk.
+const MAX_READ_BYTES: u64 = 4 * 1024 * 1024;
 
 impl QueryEngine {
     /// Expands refs under a token budget. Never cuts one item in the middle.
@@ -27,12 +29,17 @@ impl QueryEngine {
         if request.refs.is_empty() || request.refs.len() > MAX_EXPAND_REFS {
             return Err(Error::Invalid("refs must have 1 to 20 items".into()));
         }
+        crate::expand_batch::check_request(request)?;
         let budget = clamp_budget(request.token_budget, DEFAULT_EXPAND_BUDGET, self.config.max_budget);
         let mut items = Vec::new();
         let mut used = 0u32;
         let mut truncated = false;
         for value in &request.refs {
-            let mut item = self.expand_one(ctx, value, request.level, request.expected_revision.as_deref())?;
+            let mut item = match crate::expand_batch::parse_range(value) {
+                Some(range) => self.expand_range(ctx, value, range)?,
+                None => self.expand_one(ctx, value, request.level, request.expected_revision.as_deref())?,
+            };
+            self.add_related(ctx, &mut item, &request.with)?;
             let cost = json_tokens(&item) + 1;
             if used + cost > budget {
                 truncated = true;
@@ -50,8 +57,8 @@ impl QueryEngine {
         Ok(ExpandResponse { items, freshness, token_estimate: used, truncated, cursor })
     }
 
-    fn expand_one(&self, ctx: &QueryContext, value: &str, level: ExpandLevel, expected: Option<&str>) -> Result<ExpandItem> {
-        let mut item = ExpandItem { entity_ref: value.to_string(), status: ExpandStatus::NotFound, revision: None, path: None, range: None, content: None, provenance: Vec::new() };
+    pub(crate) fn expand_one(&self, ctx: &QueryContext, value: &str, level: ExpandLevel, expected: Option<&str>) -> Result<ExpandItem> {
+        let mut item = ExpandItem { entity_ref: value.to_string(), status: ExpandStatus::NotFound, revision: None, path: None, range: None, content: None, provenance: Vec::new(), more: None, related: Vec::new() };
         if level == ExpandLevel::Audit && !ctx.auth.is_admin() {
             item.status = ExpandStatus::Forbidden;
             return Ok(item);
@@ -89,8 +96,11 @@ impl QueryEngine {
     }
 
     fn current_text(&self, root: Option<&str>, path: &str, stored_hash: &str) -> (Option<String>, bool) {
-        if let Some(root) = root
-            && let Ok(bytes) = std::fs::read(Path::new(root).join(path))
+        let file = root.map(|root| Path::new(root).join(path));
+        // A file that grew past the read limit is shown from the stored copy (never read whole).
+        let readable = file.as_ref().and_then(|f| std::fs::metadata(f).ok()).is_some_and(|m| m.len() <= MAX_READ_BYTES);
+        if let Some(file) = file.filter(|_| readable)
+            && let Ok(bytes) = std::fs::read(file)
         {
             let changed = zcie_store::ObjectStore::hash(&bytes) != stored_hash;
             return (Some(String::from_utf8_lossy(&bytes).into_owned()), changed);

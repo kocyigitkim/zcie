@@ -3,9 +3,10 @@
 use std::path::Path;
 
 use zcie_store::values::{FileIdValue, TurnValue};
-use zcie_store::{Batch, Cf, Store, layout};
+use zcie_store::{Batch, Cf, ObjectStore, Store, layout};
 use zcie_types::{
     EdgeStatus, EventEnvelope, EventId, EventType, EvidenceKind, MemoryKind, MemoryRecord, Relation, Scope, WorktreeRecord,
+    truncate_chars,
 };
 
 use crate::error::Result;
@@ -13,6 +14,49 @@ use crate::records::{evidence, memories_of_event};
 
 /// Maximum number of events in one client turn.
 const MAX_TURN_EVENTS: usize = 1000;
+
+/// Most turn lookups of one session that the search for the previous user message reads.
+const MAX_SESSION_TURNS: usize = 20_000;
+/// Longest context text of a follow-up message.
+pub const MAX_CONTEXT_CHARS: usize = 300;
+
+/// Most neighbor messages that one search reads (shell commands typed with "!" are skipped).
+const MAX_NEIGHBOR_READS: usize = 8;
+
+/// Returns the texts (white space joined) of at most `count` user messages of the session of
+/// `event`, nearest first: before it, or after it if `after` is true. The order is the event
+/// sequence, not the event ID (IDs made in the same millisecond are not ordered).
+pub fn session_user_messages(store: &Store, objects: &ObjectStore, event: &EventEnvelope, after: bool, count: usize) -> Result<Vec<String>> {
+    let tenant = &event.scope.tenant_id;
+    let prefix = layout::session_turns_prefix(tenant, &event.source.session_id);
+    let user = EventType::UserMessage.name();
+    let mut near: Vec<(Vec<u8>, TurnValue)> = store
+        .prefix_scan::<TurnValue>(Cf::Lookup, &prefix, MAX_SESSION_TURNS)?
+        .into_iter()
+        .filter(|(_, value)| value.event_type == user && if after { value.seq > event.seq } else { value.seq < event.seq })
+        .collect();
+    near.sort_by_key(|(_, value)| if after { value.seq } else { u64::MAX - value.seq });
+    let mut out = Vec::new();
+    for (key, _) in near.into_iter().take(MAX_NEIGHBOR_READS) {
+        let id = zcie_store::keys::last_part(&key);
+        let Some(message) = zcie_store::events::get_event_by_id(store, tenant, &id)?.filter(|e| !e.forgotten) else { continue };
+        let text = zcie_store::events::payload_text(objects, &message)?.unwrap_or_default();
+        let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
+        if !text.is_empty() && !crate::extraction::is_shell_input(&text) {
+            out.push(text);
+        }
+        if out.len() >= count {
+            break;
+        }
+    }
+    Ok(out)
+}
+
+/// Returns the start of the user message before `event` in the same session, or `None`.
+pub fn previous_user_message(store: &Store, objects: &ObjectStore, event: &EventEnvelope) -> Result<Option<String>> {
+    let previous = session_user_messages(store, objects, event, false, 1)?;
+    Ok(previous.into_iter().next().map(|text| truncate_chars(&text, MAX_CONTEXT_CHARS)))
+}
 
 /// Returns all worktrees of a workspace.
 pub fn worktrees_of_workspace(store: &Store, tenant: &str, workspace_id: &str) -> Result<Vec<WorktreeRecord>> {

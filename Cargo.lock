@@ -2944,12 +2944,17 @@ name = "zcie"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "blake3",
  "clap",
  "serde",
  "serde_json",
+ "tempfile",
+ "time",
+ "toml",
  "zcie-sdk",
  "zcie-security",
  "zcie-types",
+ "zcie-vector",
 ]
 
 [[package]]
@@ -3016,6 +3021,7 @@ dependencies = [
  "zcie-store",
  "zcie-telemetry",
  "zcie-types",
+ "zcie-vector",
 ]
 
 [[package]]
@@ -3086,6 +3092,7 @@ dependencies = [
  "zcie-symbols",
  "zcie-telemetry",
  "zcie-types",
+ "zcie-vector",
 ]
 
 [[package]]
@@ -3150,6 +3157,7 @@ dependencies = [
  "zcie-store",
  "zcie-symbols",
  "zcie-types",
+ "zcie-vector",
 ]
 
 [[package]]
@@ -3177,10 +3185,12 @@ name = "zcie-search"
 version = "0.1.0"
 dependencies = [
  "tantivy",
+ "tempfile",
  "thiserror",
  "tracing",
  "zcie-store",
  "zcie-types",
+ "zcie-vector",
 ]
 
 [[package]]
@@ -3232,6 +3242,7 @@ dependencies = [
 name = "zcie-telemetry"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
  "thiserror",
  "tracing",
  "tracing-subscriber",
@@ -3271,6 +3282,14 @@ dependencies = [
  "thiserror",
  "time",
  "ulid",
+]
+
+[[package]]
+name = "zcie-vector"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]

@@ -208,3 +208,36 @@ fn cli_query_prints_json() {
     let value: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert!(value["results"].as_array().is_some_and(|r| !r.is_empty()));
 }
+
+fn inject(daemon: &DaemonProcess, tmp: &std::path::Path, script: &str, input: Value) -> String {
+    let mut child = Command::new("sh")
+        .arg(workspace_root().join("adapters/claude-code/hooks").join(script))
+        .env("ZCIE_URL", daemon.url())
+        .env("ZCIE_API_KEY", daemon.admin_key())
+        .env("ZCIE_WORKSPACE", WORKSPACE)
+        .env("TMPDIR", tmp)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    child.stdin.take().unwrap().write_all(input.to_string().as_bytes()).unwrap();
+    String::from_utf8(child.wait_with_output().unwrap().stdout).unwrap()
+}
+
+#[test]
+fn context_hook_injects_each_ref_once_per_session_until_compaction() {
+    let (dir, daemon) = started();
+    let repo = fixture_repo(dir.path(), true);
+    daemon.client(WORKSPACE).register_repository(&repo.to_string_lossy(), None).unwrap();
+    daemon.wait_fixture_indexed(WORKSPACE);
+    let prompt = json!({"session_id": "s-once", "cwd": "/tmp", "prompt": "where is attach_to_bone defined"});
+    let first = inject(&daemon, dir.path(), "inject-context.sh", prompt.clone());
+    assert!(first.contains("attach_to_bone"), "{first}");
+    assert_eq!(inject(&daemon, dir.path(), "inject-context.sh", prompt.clone()), "", "the same refs are not injected again");
+    let compact = json!({"session_id": "s-once", "cwd": "/tmp", "source": "compact"});
+    inject(&daemon, dir.path(), "session-start.sh", compact);
+    assert!(inject(&daemon, dir.path(), "inject-context.sh", prompt).contains("attach_to_bone"), "a compaction resets the list");
+    let notification = json!({"session_id": "s-note", "cwd": "/tmp", "prompt": "<task-notification> where is attach_to_bone defined </task-notification>"});
+    assert_eq!(inject(&daemon, dir.path(), "inject-context.sh", notification), "", "a task notification gets no capsule");
+}

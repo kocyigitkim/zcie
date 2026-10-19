@@ -4,6 +4,7 @@
 pub mod codec;
 pub mod error;
 pub mod events;
+pub mod files;
 pub mod keys;
 pub mod layout;
 pub mod objects;

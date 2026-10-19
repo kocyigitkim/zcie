@@ -54,6 +54,12 @@ pub enum Command {
     Forget(commands::data::ForgetArgs),
     /// Show the daemon health.
     Health,
+    /// Check the daemon, index, key, hooks, project and autostart. `--fix` repairs hooks and starts the daemon.
+    Doctor {
+        /// Reinstall old hooks and start a stopped daemon.
+        #[arg(long)]
+        fix: bool,
+    },
     /// Rebuild the search index.
     RebuildSearch,
     /// Configure Claude Code for ZCIE and low token use.
@@ -62,11 +68,51 @@ pub enum Command {
         #[command(subcommand)]
         action: commands::claude::ClaudeAction,
     },
+    /// Connect OpenCode to ZCIE (plugin and MCP server).
+    Opencode {
+        /// The OpenCode action.
+        #[command(subcommand)]
+        action: commands::opencode::OpenCodeAction,
+    },
+    /// Install or check the local embedding model of the vector search.
+    Vector {
+        /// The vector action.
+        #[command(subcommand)]
+        action: commands::vector::VectorAction,
+    },
+    /// Import earlier conversations into the memory of their projects.
+    Import {
+        /// The source.
+        #[command(subcommand)]
+        source: ImportSource,
+    },
     /// Manage projects (central project memory).
     Project {
         /// The project action.
         #[command(subcommand)]
         action: commands::project::ProjectAction,
+    },
+    /// Install and configure ZCIE on this computer (wizard). Run it again to change the settings.
+    Setup(commands::setup::SetupArgs),
+    /// Show or change the settings of `zcie setup`.
+    Config {
+        /// The config action.
+        #[command(subcommand)]
+        action: commands::setup::config::ConfigAction,
+    },
+    /// Check that the installation works end to end (a new session must remember an earlier one).
+    Verify {
+        /// Also run two real Claude Code sessions (uses your Claude account, about $0.05).
+        #[arg(long)]
+        live: bool,
+    },
+    /// Show the token savings of ZCIE for each project (from the Claude Code transcripts).
+    Usage(commands::usage::UsageArgs),
+    /// Remove the Claude Code and OpenCode entries and the autostart agent, and stop the daemon.
+    Uninstall {
+        /// Also delete all memory and indexes (the data folder).
+        #[arg(long)]
+        purge: bool,
     },
     /// Manage API keys.
     Key {
@@ -74,6 +120,13 @@ pub enum Command {
         #[command(subcommand)]
         action: commands::key::KeyAction,
     },
+}
+
+/// Sources of `zcie import`.
+#[derive(Debug, Subcommand)]
+pub enum ImportSource {
+    /// Claude Code transcripts: the messages that the user wrote (~/.claude/projects).
+    Claude(commands::import::ImportArgs),
 }
 
 fn main() -> anyhow::Result<()> {

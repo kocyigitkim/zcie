@@ -7,6 +7,7 @@ pub mod code;
 pub mod edge;
 pub mod error;
 pub mod event;
+pub mod evidence;
 pub mod ids;
 pub mod job;
 pub mod memory;
@@ -14,8 +15,9 @@ pub mod query;
 pub mod registry;
 pub mod scope;
 pub mod task;
+pub mod trace;
 
-pub use code::{CommitRecord, FileRecord, ParserQuality, SymbolKind, SymbolRecord};
+pub use code::{CallSite, CommitRecord, FileRecord, ParserQuality, SymbolKind, SymbolRecord};
 pub use edge::{Edge, EdgeStatus, Evidence, EvidenceKind, Relation};
 pub use error::{Error, Result};
 pub use event::{
@@ -31,6 +33,8 @@ pub use registry::{ProjectRecord, RepositoryRecord, WorkspaceRecord, WorktreeRec
 pub use api::CaptureReceiptValue;
 pub use scope::{LOCAL_TENANT, Scope, now_utc};
 pub use task::{TaskRecord, TaskState, TaskStateChange};
+pub use evidence::{EvidenceItem, QueryIntent};
+pub use trace::{QueryTrace, TraceCandidate, TraceCount, TraceStages};
 
 /// Estimates model tokens of a text: `ceil(chars / 4)`.
 pub fn estimate_tokens(text: &str) -> u32 {

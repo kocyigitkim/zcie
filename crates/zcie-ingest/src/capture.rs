@@ -29,7 +29,7 @@ impl Ingest {
         if event_type == EventType::AssistantMessage && !self.config.assistant_messages {
             return Err(Error::Forbidden("assistant messages are not captured (capture.assistant_messages)".into()));
         }
-        if let Some(receipt) = find_existing(&self.store, self.tenant(), &request.idempotency_key, self.event_seq())? {
+        if let Some(receipt) = find_existing(&self.store, self.tenant(), &idem_key(scope, &request.idempotency_key), self.event_seq())? {
             return Ok(receipt);
         }
         let (payload, redactions) = self.prepare_payload(event_type, request.payload.as_deref());
@@ -38,7 +38,7 @@ impl Ingest {
             None => None,
         };
         let mut seq_guard = self.lock_seq();
-        if let Some(receipt) = find_existing(&self.store, self.tenant(), &request.idempotency_key, *seq_guard)? {
+        if let Some(receipt) = find_existing(&self.store, self.tenant(), &idem_key(scope, &request.idempotency_key), *seq_guard)? {
             return Ok(receipt);
         }
         let mut envelope = new_envelope(scope, request, event_type, *seq_guard + 1);
@@ -62,7 +62,7 @@ impl Ingest {
         let mut batch = Batch::new();
         batch.put(Cf::Events, layout::event(t, event.seq), event)?;
         let receipt = CaptureReceiptValue { v: 1, event_id: id.to_string(), seq: event.seq };
-        batch.put(Cf::Lookup, layout::idem(t, &event.idempotency_key), &receipt)?;
+        batch.put(Cf::Lookup, layout::idem(t, &idem_key(&event.scope, &event.idempotency_key)), &receipt)?;
         batch.put(Cf::Lookup, layout::event_id(t, id), &SeqValue { v: 1, seq: event.seq })?;
         batch.put(Cf::Registry, layout::event_seq_counter(t), &NumberValue::new(event.seq))?;
         put_watermark(&mut batch, t, CANONICAL, event.seq)?;
@@ -153,6 +153,12 @@ fn validate(request: &CaptureRequest, max_payload: usize) -> Result<EventType> {
     }
     serde_json::from_value::<EventType>(Value::String(request.event_type.clone()))
         .map_err(|_| Error::Invalid(format!("unknown event type: {}", request.event_type)))
+}
+
+/// Returns the stored form of an idempotency key. Keys are unique per project (ADR-009): the same
+/// client key in two projects, or in a deleted and a new project, makes two events.
+fn idem_key(scope: &Scope, key: &str) -> String {
+    format!("{}/{key}", scope.workspace_id)
 }
 
 /// Makes the `ExtractMemory` job of an event, if the type needs one.

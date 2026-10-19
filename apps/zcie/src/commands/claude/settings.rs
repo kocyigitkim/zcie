@@ -121,8 +121,8 @@ pub fn deny_list(settings: &mut Value) -> &mut Vec<Value> {
     }
 }
 
-/// Adds one hook command to an event if the same command is not present.
-pub fn add_hook(settings: &mut Value, event: &str, matcher: Option<&str>, command: &str, manifest: &mut Manifest) {
+/// Adds one hook command to an event if the same command is not present. `timeout` is in seconds.
+pub fn add_hook(settings: &mut Value, (event, matcher): (&str, Option<&str>), command: &str, timeout: u32, manifest: &mut Manifest) {
     let Some(hooks) = object(settings, "hooks") else { return };
     let groups = hooks.entry(event.to_string()).or_insert_with(|| json!([]));
     let Some(groups) = groups.as_array_mut() else { return };
@@ -132,7 +132,7 @@ pub fn add_hook(settings: &mut Value, event: &str, matcher: Option<&str>, comman
     if present {
         return;
     }
-    let mut group = json!({ "hooks": [ { "type": "command", "command": command, "timeout": 5 } ] });
+    let mut group = json!({ "hooks": [ { "type": "command", "command": command, "timeout": timeout } ] });
     if let Some(matcher) = matcher {
         group["matcher"] = Value::String(matcher.to_string());
     }

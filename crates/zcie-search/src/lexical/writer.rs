@@ -11,10 +11,11 @@ use tantivy::directory::MmapDirectory;
 use tantivy::{Index, IndexReader, IndexWriter, ReloadPolicy, TantivyDocument, Term};
 use zcie_store::Store;
 use zcie_store::watermarks::{GRAPH, SEARCH, raise_watermark, read_watermark};
+use zcie_vector::{Entity, Vectors};
 
 use crate::error::{Error, Result};
 use crate::lexical::document::{SearchDoc, SearchOp};
-use crate::lexical::schema::{Fields, IndexName, build_schema, expand_identifiers};
+use crate::lexical::schema::{Fields, IndexName, build_schema, expand_identifiers, stem_text};
 
 /// Commit interval of the writer.
 const COMMIT_INTERVAL: Duration = Duration::from_secs(1);
@@ -22,8 +23,9 @@ const COMMIT_INTERVAL: Duration = Duration::from_secs(1);
 const COMMIT_BATCH: usize = 500;
 /// Memory budget of one Tantivy writer.
 const WRITER_MEMORY_BYTES: usize = 50_000_000;
-/// Capacity of the operation channel.
-const CHANNEL_CAPACITY: usize = 10_000;
+/// Capacity of the operation channel. A document can hold a whole file, so the channel is small;
+/// a full channel makes the producer wait (back pressure) instead of filling the memory.
+const CHANNEL_CAPACITY: usize = 1_000;
 
 /// The three Tantivy indexes with their readers.
 pub struct SearchIndex {
@@ -62,7 +64,7 @@ pub struct SearchSender {
 impl SearchSender {
     /// Sends one operation to the writer thread.
     pub fn send(&self, op: SearchOp) -> std::result::Result<(), SendError<SearchOp>> {
-        let counted = matches!(op, SearchOp::Upsert(..) | SearchOp::Delete(_) | SearchOp::DeleteAll);
+        let counted = matches!(op, SearchOp::Upsert(..) | SearchOp::UpsertPassages(..) | SearchOp::Delete(_) | SearchOp::DeleteAll);
         if counted {
             self.pending.fetch_add(1, Ordering::SeqCst);
         }
@@ -107,11 +109,12 @@ struct WriterState {
     fields: Fields,
     store: Arc<Store>,
     tenant: String,
+    vectors: Option<Arc<Vectors>>,
 }
 
 impl SearchWriter {
-    /// Starts the writer thread.
-    pub fn start(search: &SearchIndex, store: Arc<Store>, tenant: &str) -> Result<SearchWriter> {
+    /// Starts the writer thread. With `vectors`, each operation also updates the vector index (ADR-011).
+    pub fn start(search: &SearchIndex, store: Arc<Store>, tenant: &str, vectors: Option<Arc<Vectors>>) -> Result<SearchWriter> {
         let mut writers = Vec::new();
         for index in &search.indexes {
             writers.push(index.writer(WRITER_MEMORY_BYTES)?);
@@ -126,6 +129,7 @@ impl SearchWriter {
             fields: search.fields,
             store,
             tenant: tenant.to_string(),
+            vectors,
         };
         let (inner, receiver) = sync_channel(CHANNEL_CAPACITY);
         let sender = SearchSender { inner, pending };
@@ -234,36 +238,64 @@ fn commit(state: &mut WriterState, receiver: &Receiver<SearchOp>) -> bool {
     stop
 }
 
+/// Applies an operation to the vector index. Files and events have no vector (`entity_text`).
+fn apply_vectors(vectors: &Vectors, op: &SearchOp) {
+    match op {
+        SearchOp::Upsert(_, doc) => {
+            let entity = Entity { kind: &doc.kind, name: &doc.name, path: &doc.path, body: &doc.body };
+            vectors.upsert(&doc.workspace_id, &doc.entity_ref, &entity, true);
+        }
+        SearchOp::Delete(entity_ref) => vectors.index.remove(entity_ref),
+        SearchOp::UpsertPassages(..) => {}
+        SearchOp::DeleteAll => vectors.index.clear(),
+        SearchOp::Flush(_) | SearchOp::Stop => {}
+    }
+}
+
 fn apply(state: &mut WriterState, op: SearchOp) {
+    if let Some(vectors) = &state.vectors {
+        apply_vectors(vectors, &op);
+    }
     let fields = state.fields;
-    if matches!(op, SearchOp::Upsert(..) | SearchOp::Delete(_) | SearchOp::DeleteAll) {
+    if matches!(op, SearchOp::Upsert(..) | SearchOp::UpsertPassages(..) | SearchOp::Delete(_) | SearchOp::DeleteAll) {
         state.dirty = true;
         state.applied += 1;
     }
     match op {
-        SearchOp::Upsert(name, doc) => {
-            let writer = &mut state.writers[name.position()];
-            writer.delete_term(Term::from_field_text(fields.entity_ref, &doc.entity_ref));
-            if let Err(error) = writer.add_document(to_document(&fields, &doc)) {
-                tracing::error!(%error, "search add failed");
-            }
-        }
+        SearchOp::Upsert(name, doc) => replace(state, name.position(), &doc, vec![doc.body.clone()]),
+        SearchOp::UpsertPassages(name, doc, passages) => replace(state, name.position(), &doc, passages),
         SearchOp::Delete(entity_ref) => {
             for writer in &mut state.writers {
                 writer.delete_term(Term::from_field_text(fields.entity_ref, &entity_ref));
             }
         }
         SearchOp::DeleteAll => {
+            // A term delete, not `delete_all_documents`: the latter resets the operation stamp to
+            // the last commit, so delete operations sent before it (by concurrent jobs) can also
+            // delete documents that the rebuild adds after it (ADR-013). A term delete is an
+            // ordinary operation: it removes only the documents added before it.
+            let term = Term::from_field_text(fields.tenant_id, &state.tenant);
             for writer in &mut state.writers {
-                if let Err(error) = writer.delete_all_documents() {
-                    tracing::error!(%error, "search delete all failed");
-                }
+                writer.delete_term(term.clone());
             }
         }
         SearchOp::Flush(ack) => {
             let _ = ack.send(true);
         }
         SearchOp::Stop => {}
+    }
+}
+
+/// Replaces the documents of `doc.entity_ref` in one index with one document per body text.
+fn replace(state: &mut WriterState, position: usize, doc: &SearchDoc, bodies: Vec<String>) {
+    let fields = state.fields;
+    let writer = &mut state.writers[position];
+    writer.delete_term(Term::from_field_text(fields.entity_ref, &doc.entity_ref));
+    for body in bodies {
+        let part = SearchDoc { body, ..doc.clone() };
+        if let Err(error) = writer.add_document(to_document(&fields, &part)) {
+            tracing::error!(%error, "search add failed");
+        }
     }
 }
 
@@ -278,6 +310,7 @@ fn to_document(fields: &Fields, doc: &SearchDoc) -> TantivyDocument {
     out.add_text(fields.path, &doc.path);
     out.add_text(fields.name, expand_identifiers(&doc.name));
     out.add_text(fields.body, expand_identifiers(&doc.body));
+    out.add_text(fields.stems, stem_text(&format!("{}\n{}", doc.name, doc.body)));
     out.add_u64(fields.seq, doc.seq);
     out
 }

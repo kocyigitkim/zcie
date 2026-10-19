@@ -17,6 +17,7 @@ zcie-symbols.workspace = true
 zcie-graph.workspace = true
 zcie-memory.workspace = true
 zcie-search.workspace = true
+zcie-vector.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

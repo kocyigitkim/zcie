@@ -29,6 +29,10 @@ pub struct ParsedFile {
     pub symbols: Vec<ParsedSymbol>,
     /// Raw import module or path strings.
     pub imports: Vec<String>,
+    /// Names that the file uses and does not define, with their counts, the most used first.
+    pub references: Vec<(String, u32)>,
+    /// Call sites in source order (ADR-019, D-071).
+    pub calls: Vec<zcie_types::CallSite>,
     /// `PartialSyntaxError` if the tree has an error node.
     pub quality: ParserQuality,
 }
@@ -56,6 +60,8 @@ impl ParserPool {
         let mut parsed = ParsedFile {
             symbols: Vec::new(),
             imports: Vec::new(),
+            references: Vec::new(),
+            calls: Vec::new(),
             quality: if root.has_error() {
                 ParserQuality::PartialSyntaxError
             } else {
@@ -68,6 +74,9 @@ impl ParserPool {
             "typescript" => extractors::typescript::extract(root, src, &mut parsed),
             _ => extractors::python::extract(root, src, &mut parsed),
         }
+        let defined: std::collections::HashSet<&str> = parsed.symbols.iter().map(|s| s.name.as_str()).collect();
+        parsed.references = crate::references::used_names(root, src, &defined);
+        parsed.calls = crate::calls::call_sites(root, src);
         Ok(parsed)
     }
 }

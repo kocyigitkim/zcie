@@ -198,3 +198,19 @@ fn folder_without_git_is_indexed_with_git_unavailable() {
     assert!(symbols(&engine, "build_report").iter().any(|s| s.kind == SymbolKind::Function));
     assert!(file_record(&engine, &registered.worktree_id, ".env").is_none());
 }
+
+#[test]
+fn file_over_the_size_limit_is_hashed_in_a_stream_and_not_stored() {
+    let engine = TestEngine::start();
+    let repo = fixture_repo(engine.dir.path(), false);
+    let body = "pub fn big_function_marker() {}\n".repeat(80_000);
+    std::fs::write(repo.join("big.rs"), &body).unwrap();
+    let registered = engine.register(&repo);
+    engine.wait_idle();
+    let record = file_record(&engine, &registered.worktree_id, "big.rs").expect("the large file has a record");
+    assert!(record.size > 1_048_576);
+    assert_eq!(record.content_hash, zcie_fs::hash_bytes(body.as_bytes()), "the streamed hash equals the full hash");
+    assert!(!record.content_stored);
+    assert!(record.language.is_none(), "a file over the limit is not parsed");
+    assert!(symbols(&engine, "big_function_marker").is_empty());
+}

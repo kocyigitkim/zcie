@@ -44,6 +44,7 @@ pub struct TestEngine {
     /// The temporary folder. It contains `home/` and fixture repositories.
     pub dir: TempDir,
     running: Option<RunningEngine>,
+    config: EngineConfig,
 }
 
 impl TestEngine {
@@ -57,8 +58,8 @@ impl TestEngine {
         let dir = tempfile::tempdir().expect("temp dir");
         let mut config = test_config();
         change(&mut config);
-        let running = start_in(dir.path(), config);
-        TestEngine { dir, running: Some(running) }
+        let running = start_in(dir.path(), config.clone());
+        TestEngine { dir, running: Some(running), config }
     }
 
     /// Stops the engine cleanly and starts it again on the same folder.
@@ -66,7 +67,7 @@ impl TestEngine {
         if let Some(running) = self.running.take() {
             running.shutdown();
         }
-        self.running = Some(start_in(self.dir.path(), test_config()));
+        self.running = Some(start_in(self.dir.path(), self.config.clone()));
     }
 
     /// Returns the engine.
@@ -87,7 +88,7 @@ impl TestEngine {
 
     /// Registers a repository folder in the test workspace.
     pub fn register(&self, path: &Path) -> RegisterRepositoryResponse {
-        let request = RegisterRepositoryRequest { workspace: WORKSPACE.into(), path: path.to_string_lossy().into(), project: None };
+        let request = RegisterRepositoryRequest { workspace: WORKSPACE.into(), path: path.to_string_lossy().into(), project: None, index: true };
         self.engine().register_repository(&admin(), request).expect("register")
     }
 

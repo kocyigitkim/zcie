@@ -8,6 +8,9 @@ use zcie_types::WorktreeRecord;
 use crate::planner::QueryEngine;
 use crate::routes::Candidate;
 
+/// Largest file that the freshness check reads.
+const MAX_CHECK_BYTES: u64 = 4 * 1024 * 1024;
+
 /// Checks results whose path has a pending file job. Drops results that the current file
 /// does not confirm. Returns the kept results and the number of overlay results.
 pub fn check_overlay(engine: &QueryEngine, candidates: Vec<Candidate>) -> (Vec<Candidate>, usize) {
@@ -39,5 +42,9 @@ fn confirmed(engine: &QueryEngine, candidate: &Candidate, path: &str) -> bool {
         return file.exists();
     }
     let name = candidate.loaded.item.title.rsplit(['.', ':']).next().unwrap_or_default().to_string();
+    // A file that grew past the read limit is not read whole; its symbol is not confirmed.
+    if std::fs::metadata(&file).map(|m| m.len() > MAX_CHECK_BYTES).unwrap_or(true) {
+        return false;
+    }
     std::fs::read_to_string(file).map(|text| text.contains(&name)).unwrap_or(false)
 }

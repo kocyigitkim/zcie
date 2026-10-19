@@ -20,3 +20,6 @@ sdk/python/dist/
 .claude/settings.local.json
 .claude/settings.local.json.zcie-backup
 .claude/zcie-setup.json
+
+# npm package build output
+/dist/

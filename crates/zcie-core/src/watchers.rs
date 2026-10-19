@@ -42,10 +42,14 @@ impl Watchers {
         self.running.lock().unwrap_or_else(|e| e.into_inner()).remove(worktree_id);
     }
 
-    /// Starts watchers for all worktrees and makes one reconciliation scan for each (recovery step 11).
+    /// Starts watchers for the indexed worktrees and makes one reconciliation scan for each
+    /// (recovery step 11). A folder that only maps the memory to a project is not watched (ADR-015).
     pub fn start_all_and_reconcile(&self, engine: &Engine) -> Result<()> {
         let prefix = layout::registry_prefix(LOCAL_TENANT, "worktree");
         for (_, worktree) in engine.store.prefix_scan::<WorktreeRecord>(Cf::Registry, &prefix, MAX_WORKTREES)? {
+            if !worktree.indexed {
+                continue;
+            }
             self.start(&worktree);
             let scope = self.scope_of(&worktree);
             let job = JobRecord::new(JobKind::ScanRepository, scope, JobPriority::Background, self.ingest.event_seq(), worktree.worktree_id.clone());
@@ -73,8 +77,12 @@ impl Watchers {
 
     /// Starts the watcher of one worktree. A running watcher is not started again.
     pub fn start(&self, worktree: &WorktreeRecord) {
-        let mut running = self.running.lock().unwrap_or_else(|e| e.into_inner());
-        if running.contains_key(&worktree.worktree_id) {
+        if !worktree.indexed {
+            return;
+        }
+        // The lock is not held while the watcher starts: on macOS the first access to a protected
+        // folder can wait for a privacy prompt, and a project delete must not wait for it.
+        if self.running.lock().unwrap_or_else(|e| e.into_inner()).contains_key(&worktree.worktree_id) {
             return;
         }
         let ingest = Arc::clone(&self.ingest);
@@ -91,9 +99,11 @@ impl Watchers {
         });
         let root = PathBuf::from(&worktree.root_path);
         match FileWatcher::start(root, self.debounce, self.ingest.config.exclude.clone(), handler) {
-            Ok(watcher) => {
-                running.insert(worktree.worktree_id.clone(), watcher);
+            // A project deleted while its watcher started gets no watcher.
+            Ok(watcher) if self.ingest.store.exists(Cf::Registry, &layout::registry(LOCAL_TENANT, "worktree", &worktree.worktree_id)).unwrap_or(false) => {
+                self.running.lock().unwrap_or_else(|e| e.into_inner()).entry(worktree.worktree_id.clone()).or_insert(watcher);
             }
+            Ok(_) => {}
             Err(error) => tracing::warn!(%error, root = %worktree.root_path, "file watcher did not start"),
         }
     }

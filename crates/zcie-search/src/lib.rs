@@ -7,7 +7,7 @@ pub mod lexical;
 pub mod ranking;
 
 pub use error::{Error, Result};
-pub use lexical::document::{SearchDoc, SearchOp};
+pub use lexical::document::{PASSAGE_CHARS, SearchDoc, SearchOp, passages};
 pub use lexical::reader::{SearchHit, SearchQuery};
-pub use lexical::schema::{IndexName, expand_identifiers};
+pub use lexical::schema::{IndexName, STEM_CHARS, drop_apostrophe_suffixes, expand_identifiers, fold_char, stem_text};
 pub use lexical::writer::{SearchIndex, SearchSender, SearchWriter, flush};

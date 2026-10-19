@@ -15,13 +15,18 @@ const ZSTD_LEVEL: i32 = 3;
 /// Folder of compressed blobs: `objects/<hex[0..2]>/<hex[2..4]>/<hex>.zst`.
 pub struct ObjectStore {
     root: PathBuf,
+    /// The last total size and its time: a walk of all blob files takes seconds.
+    size: std::sync::Mutex<Option<(std::time::Instant, u64)>>,
 }
+
+/// Age of the cached total size of `total_bytes`.
+const SIZE_TTL: Duration = Duration::from_secs(60);
 
 impl ObjectStore {
     /// Makes an object store at `root`. Creates the folder.
     pub fn new(root: PathBuf) -> Result<ObjectStore> {
         fs::create_dir_all(&root)?;
-        Ok(ObjectStore { root })
+        Ok(ObjectStore { root, size: std::sync::Mutex::new(None) })
     }
 
     /// Returns the BLAKE3 content hash `b3:<hex>` of bytes.
@@ -101,14 +106,16 @@ impl ObjectStore {
         Ok(removed)
     }
 
-    /// Deletes blobs with no `lookup` reference that are older than `min_age`.
+    /// Deletes blobs that no event payload (`lookup` reference) and no indexed file uses and that
+    /// are older than `min_age`.
     pub fn sweep_orphans(&self, store: &Store, tenant: &str, min_age: Duration) -> Result<u64> {
+        let files = file_contents(store, tenant)?;
         let mut removed = 0;
         for file in self.all_files()? {
             let name = file.file_name().and_then(|n| n.to_str()).unwrap_or_default();
             let Some(hex) = name.strip_suffix(".zst") else { continue };
             let hash = format!("b3:{hex}");
-            if store.exists(Cf::Lookup, &layout::blob(tenant, &hash))? || !is_older_than(&file, min_age) {
+            if files.contains(&hash) || store.exists(Cf::Lookup, &layout::blob(tenant, &hash))? || !is_older_than(&file, min_age) {
                 continue;
             }
             fs::remove_file(&file)?;
@@ -119,6 +126,18 @@ impl ObjectStore {
 
     /// Returns the total size of all blobs in bytes.
     pub fn total_bytes(&self) -> u64 {
+        let mut cached = self.size.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((at, bytes)) = *cached
+            && at.elapsed() < SIZE_TTL
+        {
+            return bytes;
+        }
+        let bytes = self.walk_bytes();
+        *cached = Some((std::time::Instant::now(), bytes));
+        bytes
+    }
+
+    fn walk_bytes(&self) -> u64 {
         self.all_files()
             .unwrap_or_default()
             .iter()
@@ -157,4 +176,16 @@ fn read_dirs(path: &Path) -> Result<Vec<PathBuf>> {
 fn is_older_than(path: &Path, min_age: Duration) -> bool {
     let modified = path.metadata().and_then(|m| m.modified()).unwrap_or_else(|_| SystemTime::now());
     SystemTime::now().duration_since(modified).map(|age| age >= min_age).unwrap_or(false)
+}
+
+/// Returns the content hashes of the indexed files. Their blobs are not orphans: the search
+/// rebuild and the project card read them (a file blob has no reference count, unlike an event
+/// payload).
+fn file_contents(store: &Store, tenant: &str) -> Result<std::collections::HashSet<String>> {
+    let mut hashes = std::collections::HashSet::new();
+    crate::recovery::for_each_page::<zcie_types::FileRecord>(store, Cf::Entities, &layout::entity_prefix(tenant, "file"), 1_000, &mut |page| {
+        hashes.extend(page.into_iter().filter(|(_, f)| f.content_stored && !f.deleted).map(|(_, f)| f.content_hash));
+        Ok(())
+    })?;
+    Ok(hashes)
 }
