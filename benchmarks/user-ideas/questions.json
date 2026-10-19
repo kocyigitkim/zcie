@@ -1,0 +1,191 @@
+[
+ {
+  "stage": 1,
+  "kind": "ask",
+  "prompt": "Kullanıcı bu projede çekirdek motorun hangi programlama diliyle yazılmasını istedi?",
+  "expect": [
+   "rust"
+  ]
+ },
+ {
+  "stage": 2,
+  "kind": "ask",
+  "prompt": "Kullanıcıya göre TypeScript ve Python projede nerede kullanılabilir?",
+  "expect": [
+   [
+    "bağlantı",
+    "connection",
+    "binding",
+    "adapter",
+    "adaptör",
+    "sdk",
+    "katman"
+   ]
+  ]
+ },
+ {
+  "stage": 3,
+  "kind": "ask",
+  "prompt": "Kullanıcı dokümanların hangi yazım standardında ve hangi modelin anlayacağı biçimde yazılmasını istedi?",
+  "expect": [
+   [
+    "ste-100",
+    "ste100",
+    "ste 100"
+   ],
+   "sonnet"
+  ]
+ },
+ {
+  "stage": 4,
+  "kind": "ask",
+  "prompt": "Kullanıcıya göre testler geliştirme sürecinin hangi aşamasında yapılmalı?",
+  "expect": [
+   [
+    "en son",
+    "bitince",
+    "bittikten",
+    "after",
+    "sonra",
+    "sonunda"
+   ]
+  ]
+ },
+ {
+  "stage": 5,
+  "kind": "ask",
+  "prompt": "Kullanıcı .claude/zcie_id dosyasının git'e commit edilmesi konusunda ne karar verdi?",
+  "expect": [
+   [
+    "commit edilsin",
+    "commit edilmeli",
+    "commit edilecek",
+    "commit edilmesini",
+    "should be committed",
+    "be committed",
+    "evet"
+   ]
+  ]
+ },
+ {
+  "stage": 6,
+  "kind": "ask",
+  "prompt": "zcie_id dosyası olmayan bir klasörde Claude açıldığında kullanıcı ne olmasını istedi?",
+  "expect": [
+   [
+    "otomatik",
+    "automatic"
+   ]
+  ]
+ },
+ {
+  "stage": 7,
+  "kind": "ask",
+  "prompt": "Kullanıcı geliştirme sırasında kendisine soru sorulmasını istiyor mu? Kısaca cevap ver.",
+  "expect": [
+   [
+    "hayır",
+    "istemiyor",
+    "sorma",
+    "no"
+   ]
+  ]
+ },
+ {
+  "stage": 8,
+  "kind": "ask",
+  "prompt": "Kullanıcı testleri kimin yapmasını istedi?",
+  "expect": [
+   [
+    "sen",
+    "asistan",
+    "claude",
+    "yapay zeka",
+    "assistant",
+    "ajan"
+   ]
+  ]
+ },
+ {
+  "stage": 9,
+  "kind": "ask",
+  "prompt": "Kullanıcının Claude Code araç tanımları ve token maliyeti konusundaki isteği neydi?",
+  "expect": [
+   [
+    "otomatik",
+    "automatic"
+   ],
+   [
+    "maliyet",
+    "token",
+    "cost"
+   ]
+  ]
+ },
+ {
+  "stage": 10,
+  "kind": "ask",
+  "prompt": "Kullanıcı proje hafızasının ve indekslerin nerede ve hangi kimlikle tutulmasını istedi?",
+  "expect": [
+   "zcie_id",
+   [
+    "global",
+    "merkez",
+    "central"
+   ]
+  ]
+ },
+ {
+  "stage": 11,
+  "kind": "ask",
+  "prompt": "Kullanıcı ZCIE'nin yalnızca Claude Code için token tasarrufu yapan bir MCP sunucusu olmasını mı istiyor?",
+  "expect": [
+   [
+    "hayır",
+    "değil",
+    "no",
+    "olmayacak",
+    "not only",
+    "sadece değil",
+    "yalnızca değil"
+   ]
+  ]
+ },
+ {
+  "stage": 12,
+  "kind": "ask",
+  "prompt": "Kullanıcının spesifikasyonunda warm exact entity lookup için p95 gecikme hedefi kaç milisaniye?",
+  "expect": [
+   "10"
+  ]
+ },
+ {
+  "stage": 13,
+  "kind": "ask",
+  "prompt": "Kullanıcı 30 aşamalı hafıza testlerinin nasıl yapılmasını istedi?",
+  "expect": [
+   [
+    "yeni",
+    "new",
+    "fresh",
+    "ayrı"
+   ]
+  ]
+ },
+ {
+  "stage": 14,
+  "kind": "ask",
+  "prompt": "Kullanıcı kaç farklı projede benchmark yapılmasını istedi?",
+  "expect": [
+   "3"
+  ]
+ },
+ {
+  "stage": 15,
+  "kind": "ask",
+  "prompt": "Kullanıcı bu projenin doğruluğu konusunda ne bekliyor?",
+  "expect": [
+   "100"
+  ]
+ }
+]

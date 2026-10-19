@@ -2,7 +2,8 @@
 """A/B token benchmark: Claude Code with and without ZCIE (docs/13-test-plan.md section 7, extension).
 
 Usage: run_ab.py <tasks.json> <out.jsonl> [repetitions] [parallel]
-Each task: {"id", "cwd", "workspace", "prompt", "expect": [substrings]}.
+Each task: {"id", "cwd", "workspace", "prompt", "expect": [substrings]}, optional "system" (text added to the
+system prompt in all conditions; hooks do not see it).
 Condition A: tools Read/Grep/Glob/Bash, no MCP.
 Condition B: same tools plus the zcie MCP server.
 Condition C: same tools as A plus the ZCIE context-injection hook (UserPromptSubmit), no MCP.
@@ -13,6 +14,10 @@ Condition Z5: Z plus FORCE_PROMPT_CACHING_5M=1 (5-minute cache writes).
 Condition D: the ZCIE hooks of Z, no deny list, ENABLE_TOOL_SEARCH=true (all tools known; most by name only).
 Condition H: the ZCIE hooks of Z, ENABLE_TOOL_SEARCH=true and only 6 non-deferrable heavy tools denied
 (the model loads the other tools itself through ToolSearch).
+Condition U: the installed setup of the user (`zcie setup`, hooks in ~/.claude/settings.json), nothing added.
+Condition A0: like U, but all hooks are off (`disableAllHooks`): the baseline with no ZCIE.
+Each record has `tool_calls` (count by tool name), `tool_result_tokens` (about 4 characters per token)
+and `first_read` (the file of the first Read call), from the stream-json output.
 A task with "copy": true runs in a fresh copy of its cwd; "check" is a shell command that must
 succeed in that copy (used for editing tasks; Edit and Write are allowed there).
 Conditions come from the environment variable AB_CONDITIONS (default "A,B").
@@ -94,6 +99,35 @@ def hybrid_settings(lean_file):
     return path
 
 
+NO_HOOKS = os.path.join(TMP, "settings-no-hooks.json")
+with open(NO_HOOKS, "w") as _handle:
+    json.dump({"disableAllHooks": True}, _handle)
+
+
+def parse_stream(stdout):
+    """Reads the stream-json lines. Returns the final result event and the tool use counts."""
+    result, calls, result_chars, first_read = None, {}, 0, None
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        content = (event.get("message") or {}).get("content")
+        if event.get("type") == "result":
+            result = event
+        elif event.get("type") == "assistant" and isinstance(content, list):
+            for block in content:
+                if block.get("type") == "tool_use":
+                    calls[block["name"]] = calls.get(block["name"], 0) + 1
+                    if block["name"] == "Read" and first_read is None:
+                        first_read = (block.get("input") or {}).get("file_path")
+        elif event.get("type") == "user" and isinstance(content, list):
+            for block in content:
+                if block.get("type") == "tool_result":
+                    result_chars += len(json.dumps(block.get("content", "")))
+    return result, {"tool_calls": calls, "tool_result_tokens": result_chars // 4, "first_read": first_read}
+
+
 def run(task, condition, rep):
     cwd = task["cwd"]
     if task.get("copy"):
@@ -112,28 +146,36 @@ def run_in(task, condition, rep, cwd):
     tools = TOOLS + (" Edit Write" if task.get("copy") else "")
     deny = DENY.replace("Edit Write ", "") if task.get("copy") else DENY
     command = [
-        CLAUDE, "-p", task["prompt"], "--output-format", "json", "--max-turns", "30",
+        CLAUDE, "-p", task["prompt"], "--output-format", "stream-json", "--verbose", "--max-turns", "30",
         "--setting-sources", "user", "--strict-mcp-config",
         "--mcp-config", mcp_config(task["workspace"] if with_zcie else None),
         "--allowedTools", tools + (" mcp__zcie__zcie_query mcp__zcie__zcie_expand" if with_zcie else ""),
         "--disallowedTools", deny,
     ]
-    if with_zcie:
-        command += ["--append-system-prompt", HINT]
+    system = " ".join(part for part in (HINT if with_zcie else "", task.get("system", "")) if part)
+    if system:
+        command += ["--append-system-prompt", system]
     if condition == "C":
         command += ["--settings", hook_settings(task["workspace"])]
     if condition == "L":
         command += ["--settings", LEAN]
     if condition == "LZ":
         command += ["--settings", hook_settings(task["workspace"], lean=True)]
+    if condition == "R":
+        command += ["--settings", task["settings"]]
     if condition in ("Z", "Z5"):
         command += ["--settings", os.path.join(cwd, ".claude", "settings.local.json")]
     if condition == "H":
         command += ["--settings", hybrid_settings(os.path.join(cwd, ".claude", "settings.local.json"))]
     if condition == "D":
         command += ["--settings", defer_settings(os.path.join(cwd, ".claude", "settings.local.json"))]
+    if condition == "A0":
+        command += ["--settings", NO_HOOKS]
     started = time.time()
     env = dict(os.environ, DISABLE_AUTOUPDATER="1")
+    # Variables of the session that runs the benchmark must not reach the hooks of the runs.
+    for name in ("ZCIE_WORKSPACE", "ZCIE_URL", "ZCIE_API_KEY", "ZCIE_API_KEY_FILE", "ZCIE_SETTINGS_FILE"):
+        env.pop(name, None)
     if condition == "Z5":
         env["FORCE_PROMPT_CACHING_5M"] = "1"
     proc = None
@@ -146,11 +188,11 @@ def run_in(task, condition, rep, cwd):
     if proc is None:
         return {"task": task["id"], "condition": condition, "rep": rep, "error": "claude binary not found"}
     record = {"task": task["id"], "condition": condition, "rep": rep, "wall_s": round(time.time() - started, 1)}
-    try:
-        data = json.loads(proc.stdout)
-    except json.JSONDecodeError:
+    data, tools_used = parse_stream(proc.stdout)
+    if data is None:
         record.update(error=(proc.stdout + proc.stderr)[-500:])
         return record
+    record.update(tools_used)
     usage = data.get("usage", {})
     result = data.get("result", "") or ""
     record.update(
@@ -161,9 +203,9 @@ def run_in(task, condition, rep, cwd):
         cost_usd=data.get("total_cost_usd"),
         turns=data.get("num_turns"),
         duration_ms=data.get("duration_ms"),
-        correct=all(e.lower() in result.lower() for e in task["expect"]),
+        correct=all(e.lower() in result.lower() for e in task["expect"]) and (not task.get("expect_any") or any(e.lower() in result.lower() for e in task["expect_any"])),
         is_error=data.get("is_error"),
-        result=result[:400],
+        result=result[:2000],
     )
     return record
 
