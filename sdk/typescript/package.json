@@ -1,0 +1,13 @@
+{
+  "name": "@zcie/client",
+  "version": "0.1.0",
+  "description": "Client for the local ZCIE memory and code intelligence daemon",
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": { ".": { "types": "./src/index.d.ts", "default": "./src/index.js" } },
+  "files": ["src"],
+  "engines": { "node": ">=18" },
+  "scripts": { "test": "node --test" },
+  "license": "MIT"
+}

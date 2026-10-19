@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zcie"
+version = "0.1.0"
+description = "Client for the local ZCIE memory and code intelligence daemon"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+
+[tool.setuptools]
+packages = ["zcie"]
