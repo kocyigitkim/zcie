@@ -32,7 +32,7 @@ Read the documents in this order before you start task `D-001`.
 | 14 | [12-development-plan.md](12-development-plan.md) | Development tasks `D-001` to the last task. |
 | 15 | [13-test-plan.md](13-test-plan.md) | Tests. Start ONLY after all development tasks are complete. |
 | 16 | [14-acceptance-criteria.md](14-acceptance-criteria.md) | Acceptance. Examine ONLY after all tests pass. |
-| 17 | [adr/](adr/) | Architecture decision records. ADR-008 records the implementation decisions of milestone 1. ADR-009 defines the central project memory. |
+| 17 | [adr/](adr/) | Architecture decision records. ADR-008 records the implementation decisions of milestone 1. ADR-009 defines the central project memory. ADR-010 defines one-turn answers and the operational checks. ADR-011 defines the local vector search. ADR-012 defines the TypeScript and Python SDKs and the OpenCode adapter. |
 | 18 | [operations/quickstart.md](operations/quickstart.md) | Build, run and connect clients. |
 
 ## 3. Project phases

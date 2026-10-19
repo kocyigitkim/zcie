@@ -210,6 +210,10 @@ Use `clap` with derive. All commands except `daemon start` call the HTTP API.
 | `zcie link <from> <relation> <to> --confirm` | `POST /v1/links` with `user_confirmation`. |
 | `zcie forget --ref <ref> \| --session <s>` | `POST /v1/forget`. |
 | `zcie health` | `GET /v1/health` with the key. Print a short table. |
+| `zcie doctor [--fix]` | Check the daemon, queues, dead letters, key file, hooks, project, Claude Code settings and autostart (ADR-010). `--fix` reinstalls old hooks and starts the daemon. |
+| `zcie daemon install [--dry-run] \| uninstall` | macOS launchd agent: start `zcied` at login and after a crash. |
+| `zcie opencode setup [--dir] [--global] [--name] \| remove` | Install or remove the OpenCode plugin and the `mcp.zcie` entry (ADR-012). |
+| `zcie vector install \| status` | Download (pinned revision, BLAKE3-checked) or check the embedding model of the vector search (ADR-011). |
 | `zcie rebuild-search` | `POST /v1/admin/rebuild-search`. |
 | `zcie key create --name <client>` | Make a new API key. Print it one time. Store the hash in `clients.toml`. Runs locally, no daemon needed. |
 
@@ -222,12 +226,12 @@ All SDKs are thin HTTP wrappers. They contain no engine logic.
 | SDK | Milestone 1 | Package |
 |-----|-------------|---------|
 | Rust | Yes | `sdk/rust` crate `zcie-sdk` (uses `reqwest` blocking) |
-| TypeScript | OPTIONAL | `sdk/typescript` package `@zcie/client` (uses `fetch`) |
-| Python | OPTIONAL | `sdk/python` package `zcie` (uses `urllib.request`) |
+| TypeScript | Yes (ADR-012) | `sdk/typescript` package `@zcie/client` (uses `fetch`, no build step, types in `src/index.d.ts`) |
+| Python | Yes (ADR-012) | `sdk/python` package `zcie` (uses `urllib.request`, Python 3.9+) |
 
 Methods (same names in all SDKs, in the language's case style):
 
-`capture`, `register_repository`, `query`, `expand`, `get_entity`, `get_timeline`, `create_task`, `link`, `correct_memory`, `forget`, `health`.
+`capture`, `register_repository`, `query`, `expand`, `get_entity`, `get_timeline`, `create_task`, `link`, `correct_memory`, `forget`, `health`, `rebuild_search`, `ensure_project`, `list_projects`, `get_project`, `rename_project`, `delete_project`. The TypeScript and Python clients also have `fromEnv` / `from_env` (project from `.claude/zcie_id`).
 
 Rust example:
 
@@ -260,6 +264,14 @@ Rules:
 > **Warning:** A hook MUST NOT block or fail the user session. If the daemon is not available, the hook exits with code 0 and does nothing.
 
 - Provide `adapters/claude-code/install.md` with the `settings.json` hook entries and the MCP server entry for `zcie-mcp`.
+
+### 7.1.1 Context capsule once per session (ADR-010)
+
+The context hook stores the refs that it injected in `${TMPDIR}/zcie-<session_id>.seen` and does not inject them again in the same session. SessionStart with `source` `compact` or `clear` removes the file, because the model lost the earlier capsules.
+
+### 7.1.2 OpenCode adapter (`adapters/opencode`, ADR-012)
+
+The plugin `zcie.js` does the work of the Claude Code hooks with the same rules: `chat.message` (capture and capsule as a synthetic text part), `tool.execute.after` (file changes), `session.compacted` (reset of the injected refs). `zcie opencode setup` installs it and the `zcie-mcp` server entry.
 
 ### 7.2 Git adapter (`adapters/git`)
 

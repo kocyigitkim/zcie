@@ -13,7 +13,19 @@ user message "#89 fix attachToBone" ──REQUESTED_BY── task #89 ──IMPL
   src/animation/weapon-socket.ts ──DEFINES_SYMBOL── WeaponSocket.attachToBone        test event (passed)
 ```
 
-## Quick start
+## Install (npm)
+
+```sh
+scripts/packaging/build-npm.sh             # makes dist/zcie-<version>.tgz (macOS Apple Silicon)
+npm install -g ./dist/zcie-0.1.0.tgz
+zcie setup                                 # wizard: settings, install, end-to-end check
+zcie config set budget 1500                # change a setting later
+zcie verify --live                         # check with two real Claude Code sessions
+```
+
+Details: [npm/zcie/README.md](npm/zcie/README.md), [ADR-014](docs/adr/ADR-014-npm-install-and-setup.md).
+
+## Quick start (from source)
 
 ```sh
 cargo build --workspace --release          # needs Xcode CLT / clang (RocksDB)

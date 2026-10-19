@@ -130,6 +130,9 @@ Create `tests/fixtures/sample-repo/` with this content. A helper copies it into 
 | TS-05-07 | Timeline of a task. | Events in sequence order. |
 | TS-05-08 | `file.changed` and `user.message` with the same `session_id` and `turn_id`. | `AffectsFile` edge with `ClientTrace` evidence. |
 | TS-05-09 | `file.changed` at the same time but a different `turn_id`. | No `Verified` edge. |
+| TS-05-10 | A pasted 2,700-character document with "#89" and "STE-100", and a short "Fix #90" message. | Only "#90" makes a task. |
+| TS-05-11 | A statement "PostgreSQL 16", an unrelated statement, then "Düzeltme: PostgreSQL 16 değil, 17". | The old statement is superseded, the unrelated one stays active; the first memory result has "17". |
+| TS-05-12 | Eight statements, a correction and a question; then "bütün kararları ve kuralları listele". | Every current statement is listed (titles); the corrected one and the question are not. |
 
 ### TS-06 — Code intelligence
 
@@ -146,6 +149,9 @@ Create `tests/fixtures/sample-repo/` with this content. A helper copies it into 
 | TS-06-09 | Commit with no trailer, made one second after a request. | No `Verified` task-to-commit edge. |
 | TS-06-10 | Write one file 20 times in 100 ms. | One `IndexFile` job. |
 | TS-06-11 | Index a folder with no `.git`. | Files are indexed. Git features are `unavailable`. |
+| TS-06-13 | Parse TypeScript with `const`, `let`, a const arrow function, a destructuring and a local `const` (`crates/zcie-parse/tests/constants.rs`). | Only the top-level `const` is a `Constant`; its signature has the value; the arrow function is a `Function`. |
+| TS-06-14 | Parse Python with UPPER_CASE module assignments, a lowercase assignment, a class attribute and a local assignment. | Only the module UPPER_CASE names are `Constant`. |
+| TS-06-15 | Index a 2.5 MB source file (limit 1 MB). | A record with the streamed hash (equal to the full hash); no stored content; not parsed. The file is never read whole. |
 
 ### TS-07 — Search, query and context
 
@@ -161,6 +167,14 @@ Create `tests/fixtures/sample-repo/` with this content. A helper copies it into 
 | TS-07-08 | Expand a symbol ref at level `source`. | The exact span lines. |
 | TS-07-09 | Expand with an old `expected_revision`. | Stale error. |
 | TS-07-10 | Delete the search folder. Run `rebuild_search`. Query again. | Same results as before. |
+| TS-07-11 | Query with a question whose words are in a symbol name; query with chat words. | `match_coverage` ≥ 0.6; `match_coverage` = 0. |
+| TS-07-12 | "Which commit changed …" with no task in the store. | Class `implementation`; the lexical search finds the commit. |
+| TS-07-13 | Register two copies of the fixture repository in one project. Query a symbol. | One result per symbol (same path, range and revision). |
+| TS-07-14 | A 6,000-character message with one fact in the middle; a question about the fact. | The snippet (≤ 600 characters) has the fact. |
+| TS-07-15 | Turkish questions with inflected words ("API'sine", "sınırı", "motorun") against stored facts; "Kullanıcı … istedi". | The facts are found; coverage ≥ 0.6; the user-intent question is class `timeline`. |
+| TS-07-16 | Two search rebuilds in a row after a captured decision. | The second rebuild is skipped; the decision stays searchable. |
+| TS-07-17 | A 42,000-character pasted document with one decision in the middle; a question about it. Unit: `passages` (`crates/zcie-search/tests/passages.rs`). | A result snippet has the decision. Passages ≤ 1,500 characters, end at sentence ends, cover the whole text. |
+| TS-07-18 | One decision and twelve `command.run` events with the same words. | The decision is the first result. |
 
 ### TS-08 — Multitenancy and scope
 
@@ -205,6 +219,7 @@ Run the daemon as a child process. Stop it with `SIGKILL`.
 | TS-11-06 | `zcie-mcp`: call `zcie_query`. | Same result as HTTP. |
 | TS-11-07 | Run each Claude Code hook script with the daemon stopped. | Exit code 0 within 3 seconds. |
 | TS-11-08 | CLI `zcie query` against a running daemon. | JSON output. |
+| TS-11-09 | Run the context hook two times with the same prompt and session; then SessionStart with `source: compact`; then the hook again. | The first and the third run inject the capsule; the second run injects nothing. |
 
 ### TS-12 — Weapon socket scenario (end-to-end)
 
@@ -244,6 +259,159 @@ File: `tests/integration/projects.rs`.
 | TS-14-09 | Run `session-start.sh` in a subfolder of a new Git repository, two times; then in the home folder. | One ID file in the Git root; the same ID after the second run; no ID file in the home folder. |
 | TS-14-10 | `zcie project init` from a subfolder; `zcie project show`; remove the ID file; `zcie project migrate`. | The ID file is in the Git root; show finds the project; migrate writes the same ID again. |
 | TS-14-11 | `zcie-mcp` started in a project subfolder with no `ZCIE_WORKSPACE`. Call `zcie_query`, then with `scope: global`. | The first result has only the current project; the global result has both projects. |
+| TS-14-16 | Dead-letter and pending jobs of a missing project, a tenant job, and a project that is then deleted. | The sweep removes the jobs of the missing project only; the tenant job stays; the delete removes the rest. |
+| TS-14-12 | Query in A that contains the project ID of B. | The first result is from B. |
+| TS-14-13 | `asks_all_projects`; a query in A with "which of my projects …". | Phrases in English and Turkish match; the results have A and B. |
+| TS-14-14 | `stems`; a query over all projects where a third project matches only the question words. | camelCase and paths split; question words are not terms; the project with "Redis" comes first; the noise project is dropped. |
+| TS-14-15 | The same idempotency key in two projects; a replay; delete a project and make a new one with the same name. | Two events; the replay is a duplicate; the new project stores the event; no job stays pending. |
+
+### TS-15 — TypeScript and Python SDKs, OpenCode plugin (ADR-012)
+
+File: `tests/integration/sdks.rs`. It starts a daemon and runs the tests of each client against it. A missing `node` or `python3` skips that client with a printed reason.
+
+| ID | Test | Expected result |
+|----|------|-----------------|
+| TS-15-01 | TypeScript SDK (`sdk/typescript/test/client.test.mjs`): health, project, repository, query, expand; idempotent capture; error status and code; `findProjectId` and `fromEnv`. | 4 of 4 pass. |
+| TS-15-02 | Python SDK (`sdk/python/tests/test_client.py`): the same 4 tests. | 4 of 4 pass. |
+| TS-15-03 | OpenCode plugin (`adapters/opencode/test/plugin.test.mjs`): the plugin makes the project and the ID file; a capsule as a synthetic part; no second copy in the session; again after `session.compacted`; no capsule for chat; no failure and no ID file when the daemon does not run; the gate rules. | 3 of 3 pass. |
+
+### TS-16 — Vector search (ADR-011)
+
+Files: `crates/zcie-vector/tests/vector.rs`, `tests/integration/vector.rs`. Model tests need the model in `ZCIE_TEST_MODEL_POTION_BASE_8M` or `~/.zcie/models/potion-base-8M`; without it they print a reason and return.
+
+| ID | Test | Expected result |
+|----|------|-----------------|
+| TS-16-01 | Tokenizer: accents, punctuation, WordPiece pieces, unknown word. | The BERT uncased tokens. |
+| TS-16-02 | Identifier split and entity text (doc comments; files are not embedded). | "apply late fee"; the comment is in the text. |
+| TS-16-03 | Flat index: upsert, insert-if-absent, other workspace, remove, clear. | The ranks and the counts are correct. |
+| TS-16-04 | Model: three paraphrase questions against three code texts. | Each question is nearest to its code. |
+| TS-16-05 | Engine with vectors off and on: a memory question with no shared word. | Not found off; rank 1 on. |
+| TS-16-06 | Restart (startup fill), then forget the session. | Rank 1 after the restart; not found after the forget. |
+
+### TS-17 — Memory accuracy (ADR-013)
+
+Files: `crates/zcie-vector/tests/vector.rs`, `tests/integration/memory_graph.rs`, `tests/integration/query.rs`, `tests/integration/gateways.rs`. TS-17-04 needs the model in `ZCIE_TEST_MODEL_POTION_MULTILINGUAL_128M` or `~/.zcie/models/potion-multilingual-128M`; without it the test prints a reason and returns.
+
+| ID | Test | Expected result |
+|----|------|-----------------|
+| TS-17-01 | Unigram tokenizer with a small model: Viterbi pieces, punctuation as a word, an unknown character, a BPE model. | The pieces with the best score; the unknown character is dropped; BPE is refused. |
+| TS-17-02 | Unigram normalizer: "…", full-width letters, a no-break space. | "...", ASCII letters, a space. |
+| TS-17-03 | Model folder: the default model is missing, `potion-base-8M` is installed; a configured other model. | The installed model is used; a configured model has no fallback. |
+| TS-17-04 | Multilingual model: 4 questions (Turkish and English) against 4 texts (code and decisions in the other language). | Each question is nearest to its text. |
+| TS-17-05 | Entity text of memory records: a stated requirement, a stored question, an observation, a decision. | The requirement and the decision are embedded; the question and the observation are not. |
+| TS-17-06 | "Düzeltme: PostgreSQL 16 değil, PostgreSQL 17 kullanacağız." after a statement with 16 and an unrelated statement. | The statement with 16 is superseded; the unrelated statement stays active; the query gives 17 first. |
+| TS-17-07 | "Bütün kararları listele" with 8 statements, a correction and a stored question. | All current statements; no stored question. |
+| TS-17-08 | A short follow-up message after a message about tool definitions; a message of another session between them. | The follow-up has the earlier message of its own session as context; a query about tool definitions finds it. |
+| TS-17-09 | Context migration on a record with no context. | The migration sets the context once. |
+| TS-17-10 | A shell command "! zcie doctor --fix" between two messages. | No memory record for the command; the next message gets the message before the command as context. |
+| TS-17-11 | Bilingual equivalents ("toolların" and "araç tanımları"). | The message with "toolların" is the first memory result; match coverage ≥ 0.6. |
+| TS-17-12 | Context hook with a `<task-notification>` prompt (in TS-11-09). | No capsule. |
+| TS-17-13 | Match coverage for general questions with format words (JSON, YAML, README) and for a project name. | 0.0 for the general questions; at least 0.6 for "PostgreSQL" in a statement; 0.0 for a symbol. |
+| TS-17-14 | A decision sentence of a long pasted document, and a short request that answers the question. | The request ranks before the sentence; the sentence record shows at most 400 characters around it. |
+| TS-17-15 | A request, two short next messages and a long message in one session. | The request has the two short messages as `follow_up`; the long message is not a follow-up. |
+
+### TS-18 — Installation, settings and verification (ADR-014)
+
+File: `tests/integration/install.rs`. Each test has its own home, `HOME` and port; autostart is off. TS-18-06 needs `node`; without it the test prints a reason and returns.
+
+| ID | Test | Expected result |
+|----|------|-----------------|
+| TS-18-01 | `zcie setup --yes` with options (project folder, port, vector off, autostart off). | Exit 0; all verify checks ✓, including "a NEW session gets the fact of an earlier session"; `setup.toml`, `engine.toml` and the Claude Code settings have the values. |
+| TS-18-02 | `zcie config set budget 900 workers 1`; then wrong values (budget 99999, vector fast, unknown key); `config show`. | The new values are applied to the Claude Code settings and `engine.toml`; each wrong value fails and changes nothing. |
+| TS-18-03 | The wizard with piped answers (language tr, profile lean, the rest kept); a second run that declines the summary. | The answered values change and the others stay; "Nothing was changed" after the decline. |
+| TS-18-04 | `zcie verify` before and after `zcie daemon stop`. | Exit 0, then a failure with "✗  daemon does not answer". |
+| TS-18-05 | `zcie uninstall --purge`. | The home folder is deleted; the Claude Code settings have no ZCIE entry; `verify` fails. |
+| TS-18-06 | The npm launcher without and with the native programs; a command before setup. | "has no build for" with exit 1; the version of `zcie`; the hint "Run: zcie setup". |
+| TS-18-07 | `zcie project add` of a small folder; `zcie project status` of the folder and of a folder with no project. | The add waits until "index complete"; 3 files and 1 symbol; the query finds the symbol; the hint "zcie project add" for the other folder. |
+| TS-18-08 | `zcie project add` of a repository that holds an ignored inner repository and an ignored `data/`; then with `--nested`. | Both folders are reported as skipped; with `--nested` the inner repository gets its own project ID and its symbol. |
+| TS-18-09 | SessionStart hook in an inner repository with no ID file, inside an added project. | The inner repository gets its own project, not the outer one. |
+| TS-18-10 | Setup defaults, then the Stop hook `assistant-message.sh` with `last_assistant_message`. | `assistant_messages = true` in `engine.toml`; the Stop hook is set; a query finds the answer. |
+
+### TS-19 — Only added folders are indexed (ADR-015)
+
+File: `tests/integration/indexing_scope.rs`.
+
+| ID | Test | Expected result |
+|----|------|-----------------|
+| TS-19-01 | A folder registered for the memory only; then `index = true`; then a registration for the memory again. | 0 files and "not indexed" first; files and symbols after the add; the folder stays indexed. |
+| TS-19-02 | New files in an added folder: one under a `.gitignore` folder (`build/`), one in `src/`. | Only `src/` file is indexed. |
+| TS-19-03 | A pending file job of a memory-only folder, then a restart. | The job is deleted at startup; 0 files. |
+| TS-19-04 | "Bu proje hakkında bana bilgi ver" in a folder with a README, `compose.yml`, `src/` and an inner project. | The answer lists the top level and the inner project; the README start is a file result. |
+| TS-19-05 | An assistant answer captured with `capture.assistant_messages = true`. | A later question finds the answer. |
+| TS-19-06 | Blob sweep with age 0 after a folder is indexed. | The content of the indexed file stays. |
+| TS-19-07 | The content blob of an indexed file is deleted; the folder is scanned again. | The blob is stored again. |
+
+### TS-20 — Context efficiency (ADR-017)
+
+Write these tests after D-055 to D-065 are done. Files: `tests/integration/context_efficiency.rs` (engine), `tests/integration/context_hooks.rs` (hook), the ledger fixture `ledger_repo` in `tests/support/fixture.rs`, unit tests in `crates/zcie-query/src/{capsule_rules,compress,expand_batch}.rs`, the benchmark scripts of D-055.
+
+| ID | Test | Expected result |
+|----|------|-----------------|
+| TS-20-01 | Two results with the same full text; a follow-up text equal to an item title. | One item; the follow-up text is not shown twice. |
+| TS-20-02 | The 15 prompts of `benchmarks/user-ideas/generic.json` (it has "bunların planını oluştur"), with 3 project facts in memory. | `capsule = false` for each; the hook prints nothing. A short fact question ("Kod incelemesini kim yapıyor?") keeps its capsule. |
+| TS-20-03 | A response with 5 items. | The best item is first and the second best is last. |
+| TS-20-04 | A fixture file that calls a function of another file; then the call is removed. | The file references (`file_refs`, D-057) have the name; after the change the name is deleted. |
+| TS-20-05 | `--mode map` with a budget of 300 tokens, with a general question and with a question about one file (the seed). | The map has 300 tokens or fewer; the seeded file ranks higher (first) with the seed. |
+| TS-20-06 | Symbol text with context (path, container, file comment). | The indexed body has the context; the shown title and snippet do not change. |
+| TS-20-07 | "#89 hangi dosyayı değiştirdi ve hangi test geçti?" on the fixture. | Task, commit, file and test event in the first 6 results. |
+| TS-20-08 | Compression of a 2,000-character snippet with 2 matching sentences. | Both sentences are kept, in order; "…" marks the gaps; 450 characters or fewer (the limit after D-065). |
+| TS-20-09 | `--mode locate` "add a tax to the late fee" on the ledger fixture. | The fee file is the first file; each line has `path:start-end`; 300 tokens or fewer. |
+| TS-20-10 | `zcie_expand` with 3 ranges and one range of 250 lines; a symbol ref with `with: ["callers", "tests"]`. | 3 sources in the budget; the long range is cut at 100 lines with the "more" range; the caller line and the test line are given. |
+| TS-20-11 | Each `[context]` setting set to false. | The behavior of the task is off (no `capsule = false`, no map, no graph score, one window instead of compression); the other tests of the suite still pass. |
+| TS-20-12 | Benchmarks of D-065 against the baseline of D-055. | The numbers meet AC-32 to AC-36. |
+
+### TS-21 — Evidence-first context (ADR-019)
+
+Write these tests after the tasks of a P5 release are done. Files: `tests/integration/evidence.rs` (new), `tests/integration/context_hooks.rs`, unit tests in `crates/zcie-query/src/{intent,evidence,trace}.rs`, `benchmarks/isolated/`.
+
+| ID | Test | Expected result |
+|----|------|-----------------|
+| TS-21-01 | A query with `explain: true` and the same query without it. | The trace lists each candidate with its source and reason, and the stage durations; the response without `explain` has no `trace` field. |
+| TS-21-02 | Two isolated benchmark runs of 2 tasks with the same seed. | The manifests of the clones are equal; the frozen home is unchanged; the condition order is the same for the same seed. |
+| TS-21-03 | The prompts of `code.json` and `locate.json`. | Each prompt gets the intent of its task class. |
+| TS-21-04 | An edit prompt on the ledger fixture. | `evidence` has the slice of the function to change, with correct lines and hash, and `requires_live_read: false`. |
+| TS-21-05 | The same prompt after the file changed on disk (not indexed yet). | `requires_live_read: true`; the hook prints "changed". |
+| TS-21-06 | An explanation prompt about two connected functions. | `intent = explain`; the evidence has the bodies of both functions; no text is compressed. |
+| TS-21-07 | The same edit prompt twice in one hook session; then a change of the file and the prompt again. | The slices are printed once; after the change they are printed again with "changed". |
+| TS-21-08 | "bunu düzelt" after an edit prompt in the same session. | The capsule has the slices of the working set only if their files changed; else no capsule. |
+| TS-21-09 | Two functions with the same name in two modules; a reference through an import. | Two resolution keys; the reference resolves to one; a bare name stays `candidate` (P5.3). |
+| TS-21-10 | An assistant answer that contradicts a user requirement. | The user requirement stays active (P5.4). |
+| TS-21-11 | The hook key on admin routes; range expansion with `../` and absolute paths outside the project. | 403 for each admin route; `not_found` for each path outside the project (P5.4). |
+| TS-21-12 | Forget a record, restart, then lexical, vector, graph and expand queries (P5.4). | No result has the record. |
+| TS-21-13 | The Stop hook after an edit that leaves a Rust syntax error; after a fix; a turn with no edit. | Block with the compiler error; then no block; no block with no edit (ADR-020). |
+| TS-21-14 | The adversarial fact fixture: a wrong assistant statement, a superseded value, a changed file. | No wrong value is shown as a fact; each is labeled (ADR-020). |
+| TS-21-15 | A file changed on disk with no event (editor), then the same question. | The answer has the new content, not a cached one (D-078). |
+
+### TS-22 — Token savings report and menu bar app (ADR-022)
+
+Files: `apps/zcie/src/commands/usage/tests.rs` (TS-22-01 to 03, 07 to 10), `tests/integration/usage.rs` (TS-22-04, 05), `apps/zcie-bar/test.sh` (TS-22-06).
+
+| ID | Test | Expected result |
+|----|------|-----------------|
+| TS-22-01 | A fixture transcript: typed messages, notifications, meta records, tool results, an assistant message in 3 records, a ZCIE capsule, a subagent file, a session of `sdk-cli`. | 2 turns; each message counted once; Read 1, searches 3 (grep, Grep, Glob); 1 capsule; the subagent adds to its session; the `sdk-cli` session is automated. |
+| TS-22-02 | Scan, append lines (one written in two parts), scan again; then make the file shorter. | The incremental result equals a full scan; a half line is read once when complete; a shorter file is read again from the start. |
+| TS-22-03 | The report of 3 + 3 sessions of a project, a project with 1 + 1 sessions, automated, old, empty and temporary sessions, two folders with the same name. | Medians 200 and 500, saving 60 %, 1,800 tokens; 1 + 1 sessions give 800 tokens with no minimum; excluded sessions are not counted; names `x/repo` and `y/repo`. |
+| TS-22-04 | `zcie usage --json` and the table on fixture transcripts and a hook statistics file. | Saving 75 %, 6,750 tokens, no outlier, confidence medium; gate pass 1; the cache file is written; the table shows "-75%" and the reason of the other project. |
+| TS-22-05 | The read guard on a 900-line file, an image and a binary file; the gate after a Python syntax error and after the fix; a hook that runs from the repository. | Lines `read_guard` (900, 250), `gate block`, `gate pass`; no line for the image and the binary file; no file content; no statistics file in the repository. |
+| TS-22-06 | The decode check of the app on the output of `zcie usage --json`. | The report decodes; the first project and its saving are printed. |
+| TS-22-07 | Root records with `--no-disk`: a recorded root, a root from the SessionStart hook, a linked worktree. | The recorded roots are used; the worktree goes to its repository; a guess is not recorded. |
+| TS-22-08 | Two scans within one minute after an append. | The second result has the new lines; the cache file is not written again. |
+| TS-22-09 | A project with 1 session with ZCIE and none with no ZCIE; 3 sessions with no ZCIE in other projects; then none. | Basis `all projects`, saving 50 % against their median (200), note "rough…", `rough_saved_tokens` 200 and `saved_tokens` 0; with none: no value. |
+| TS-22-10 | A session that ZCIE joined later: a turn and a subagent before the first ZCIE output, the turn of the first capsule, a later subagent. | The part before (1 turn, its tokens and the early subagent) counts as a session with no ZCIE; the turn of the capsule and the rest count as ZCIE. |
+
+### TS-23 — Activity log and index view (ADR-023)
+
+| ID | Test | Expected result |
+|----|------|-----------------|
+| TS-23-01 | A capture and a query on a test engine (`tests/integration/usage.rs`). | The activity log has `capture`, `job` and `query` lines with a time and ms; the query line has the question, results and tokens. |
+| TS-23-02 | A fixture log of queries, an expand, a capture and jobs, read in two parts (`usage/index.rs`). | Totals for each project are exact; p50 5 ms and p95 100 ms from the buckets; a failed job counts; the newest operation is first; a third read reads nothing. |
+
+### TS-24 — Honest savings and subagent context (ADR-024)
+
+| ID | Test | Expected result |
+|----|------|-----------------|
+| TS-24-01 | A project with a large ZCIE session (6 subagents), a small one, 3 sessions with no ZCIE, and an automated session (`usage/tests.rs`). | The large session is an outlier (cost per turn ≥ 3 × median), listed with subagents 6 and share 93 %, and left out; saving against the median 300; confidence low; automated 1 session. |
+| TS-24-02 | The subagent hook on an Agent call with a task that names a symbol of an indexed fixture; on a Read call; with the daemon stopped (`tests/integration/context_hooks.rs`). | The task gets the ZCIE capsule appended (`updatedInput.prompt`); other tools and a stopped daemon give no output. |
 
 ## 6. Token regression
 
@@ -276,6 +444,10 @@ Run benchmarks after all test suites pass. Benchmarks do not block the acceptanc
 
 Write the results to `benchmarks/results/<date>.md`.
 
+### 7.1 Multi-project benchmark (ADR-009)
+
+Run `benchmarks/samples/generate.py` and `benchmarks/samples/prepare.py`, then `benchmarks/claude-ab/run_ab.py` with `AB_CONDITIONS=A,Z` (see `benchmarks/samples/README.md`). The report is `benchmarks/results/three-projects-2026-10-16.md`. Expected result: Z is correct in all runs and costs less than A in each task group.
+
 ## 8. Test results record
 
 Fill this table during the test phase.
@@ -286,15 +458,25 @@ Fill this table during the test phase.
 | TS-02 | 8 | 8 | 0 | 0 | 2026-10-16 |
 | TS-03 | 7 | 7 | 0 | 0 | 2026-10-16 |
 | TS-04 | 9 | 9 | 0 | 0 | 2026-10-16 |
-| TS-05 | 9 | 9 | 0 | 0 | 2026-10-16 |
-| TS-06 | 12 | 12 | 0 | 0 | 2026-10-16 (incl. regression I-32) |
-| TS-07 | 10 | 10 | 0 | — | 2026-10-16 |
+| TS-05 | 12 | 12 | 0 | 0 | 2026-10-16 |
+| TS-06 | 15 | 15 | 0 | 0 | 2026-10-16 (incl. regression I-32) |
+| TS-07 | 18 | 18 | 0 | — | 2026-10-16 |
 | TS-08 | 4 | 4 | 0 | — | 2026-10-16 |
 | TS-09 | 6 | 6 | 0 | 0 | 2026-10-16 |
 | TS-10 | 4 | 4 | 0 | — | 2026-10-16 |
-| TS-11 | 7 | 7 | 0 | 0 | 2026-10-16 |
+| TS-11 | 8 | 8 | 0 | 0 | 2026-10-16 |
 | TS-12 | 1 (6 checks) | 1 | 0 | 0 | 2026-10-16 |
-| TS-14 | 11 | 11 | 0 | 0 | 2026-10-16 |
+| TS-14 | 16 | 16 | 0 | 0 | 2026-10-16 |
+| TS-15 | 3 (11 client tests) | 3 | 0 | 0 | 2026-10-16 |
+| TS-16 | 6 | 6 | 0 | 0 (model present) | 2026-10-16 |
+| TS-17 | 15 | 15 | 0 | 0 (model present) | 2026-10-17 |
+| TS-18 | 10 | 10 | 0 | 0 | 2026-10-17 |
+| TS-19 | 7 | 7 | 0 | 0 | 2026-10-17 |
+| TS-20 | 12 | 11 | 1 | 0 | 2026-10-17 (TS-20-12: AC-32 and AC-33 are not met) |
+| TS-21 | 15 | 15 | 0 | 0 | 2026-10-17 (all releases P5.1 to P5.6; ADR-020) |
+| TS-22 | 10 | 10 | 0 | 0 | 2026-10-19 (ADR-022) |
+| TS-23 | 2 | 2 | 0 | 0 | 2026-10-19 (ADR-023) |
+| TS-24 | 2 | 2 | 0 | 0 | 2026-10-19 (ADR-024) |
 | TK | 2 (1 test fn) | 2 | 0 | — | 2026-10-16 |
 
 ## 9. Exit conditions

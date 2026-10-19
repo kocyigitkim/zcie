@@ -47,6 +47,8 @@ pub struct QueryResponse {
     pub token_estimate: u32,
     pub truncated: bool,
     pub cursor: Option<String>,
+    pub note: Option<String>,             // reason of a partial answer; project roots of a multi-project query (ADR-009)
+    pub match_coverage: Option<f32>,      // best share of question terms in one fact result (ADR-010)
 }
 
 pub enum AnswerKind { Local, Evidence, NotFound }

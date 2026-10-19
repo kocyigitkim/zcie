@@ -19,6 +19,8 @@ Rules:
 - Expand `~` in paths with the `HOME` environment variable.
 - Copy the file in section 2 to `config/default.toml` in the repository.
 
+`zcie setup` and `zcie config set` (ADR-014) keep their settings in `~/.zcie/config/setup.toml` and write these `engine.toml` keys: `server.http_addr`, `ingest.worker_count`, `vector.enabled`, `vector.model`. Other keys in `engine.toml` stay. They also write `~/.zcie/config/client.json` (`url`, `budget`) for the OpenCode plugin.
+
 ## 2. `engine.toml` (defaults)
 
 ```toml
@@ -59,6 +61,13 @@ exclude_globs = [".env", ".env.*", "*.pem", "*.key", "id_rsa*"]
 [capture]
 assistant_messages = false
 command_output_max_bytes = 65536
+
+[vector]
+enabled = true                 # use local vector search if the model folder exists (ADR-011)
+model = "potion-multilingual-128M"  # folder under <home>/models/ (zcie vector install); if this default is
+                                    # missing, the first installed known model is used (ADR-013)
+# min_similarity = 0.20         # lowest cosine similarity of a vector hit; default 0.20 for the
+                                # multilingual model, 0.30 for potion-base-8M
 ```
 
 ## 3. Key reference

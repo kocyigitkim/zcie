@@ -43,12 +43,12 @@ A project is a workspace record in the existing registry. The project ID is the 
 `QueryRequest` gets two fields:
 
 - `scope`: `project` (default) or `global`. `global` reads all projects that the API key permits.
-- `cross_project`: if true, the query also reads each permitted project whose name is a whole word in the question. Clients set it to true.
+- `cross_project`: if true, the query also reads each permitted project whose name or project ID is a whole word in the question. Clients set it to true. If `cross_project` is true and the question asks about all projects (phrases such as "which of my projects", "all my projects", "tüm projeler", "hangi proje"), the query reads all permitted projects, as with `global`.
 
 The engine runs the normal single-project query in each target project. Then it merges the results:
 
 1. Each result gets the field `project` (the project name).
-2. Projects that the question names come first. In global scope, the project with the best first result comes first.
+2. Projects that the question names come first. In global scope (and for "all projects" questions), the ranking uses term coverage (`crates/zcie-api/src/relevance.rs`): each result gets the weighted share of the question terms that it contains. Question words ("which", "projects", "uses") are not terms. A term in the results of few projects has a high weight: ln((projects + 1) / (projects with the term + 0.5)). Results with less than half of the best coverage are dropped, projects with no result are dropped, and the project with the best result comes first.
 3. The merge takes results rank by rank (rank 1 of each project, then rank 2). Scores of different projects are not comparable, so a score sort can fill the token budget with one project only.
 4. The normal token budget (`build_capsule`) applies to the merged list.
 5. A merged response has no cursor. A caller asks again with a larger budget.
@@ -66,6 +66,9 @@ The UserPromptSubmit hook (`inject-context.sh`) sends `cross_project: true`. If 
 | Show | `GET /v1/projects/{id or name}` | `zcie project show` | Read |
 | Rename (the ID does not change) | `POST /v1/projects/{id}/rename` | `zcie project rename` | Write |
 | Delete (forget all events and memory, remove from the registry) | `DELETE /v1/projects/{id}` | `zcie project delete` | Admin |
+
+### 7. Idempotency keys
+An idempotency key is unique per project. The store keeps `<project ID>/<client key>`. The same client key in two projects (for example the CLI default `cli:<session>:<turn>`), or in a deleted project and a new project, makes two events. Jobs of a removed worktree (a deleted project) end with no work.
 
 ## Consequences
 - One daemon and one store hold the memory of all projects. A question from any folder can read any permitted project.

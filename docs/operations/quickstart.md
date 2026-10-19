@@ -127,6 +127,10 @@ See `adapters/claude-code/install.md`. The manual steps below are an alternative
 | Problem | Action |
 |---------|--------|
 | `Library not loaded: @rpath/libclang.dylib` during the build | Install Xcode Command Line Tools, or set `LIBCLANG_PATH` to the folder with `libclang.dylib`. |
-| `another zcied holds .../daemon.lock` | A daemon runs. Use `zcie daemon stop`. |
+| Something does not work and you do not know what | `zcie doctor` checks all parts and prints a fix for each problem. `zcie doctor --fix` repairs the hooks and starts the daemon. |
+| The daemon is not running after a restart of the computer | `zcie daemon install` starts it at login (macOS). |
+| A question with other words than the code finds nothing | `zcie vector install` adds local vector search (31 MB model, no network at query time). Restart the daemon. |
+| You use OpenCode, not Claude Code | `zcie opencode setup` in the project folder. Both tools share the memory of the project. |
+| `another zcied holds .../daemon.lock` | A daemon runs. Use `zcie daemon stop` (it waits until the daemon ends). |
 | Search results lag behind | `zcie health` shows the watermarks. `zcie rebuild-search` rebuilds the search index. |
-| A job failed three times | See `~/.zcie/instances/local/queue/dead-letter/`. |
+| A job failed three times | See `~/.zcie/instances/local/queue/dead-letter/`. Failed jobs of deleted projects are removed by the hourly maintenance. |

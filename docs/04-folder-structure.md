@@ -46,7 +46,7 @@ ZCIEngine/
 │   ├── zcie-api/
 │   ├── zcie-core/
 │   ├── zcie-lsp/              # OPTIONAL, folder only
-│   └── zcie-vector/           # OPTIONAL, folder only
+│   └── zcie-vector/           # local static embeddings and vector index (ADR-011)
 ├── apps/
 │   ├── zcied/                 # daemon binary
 │   ├── zcie/                  # CLI binary
@@ -63,12 +63,12 @@ ZCIEngine/
 │   ├── git/                   # post-commit hook script
 │   ├── filesystem/            # notes only
 │   ├── custom-example/        # example HTTP client script
-│   ├── opencode/              # OPTIONAL
+│   ├── opencode/              # OpenCode plugin zcie.js (ADR-012)
 │   └── ide/{vscode,jetbrains} # OPTIONAL
 ├── sdk/
 │   ├── rust/                  # crate zcie-sdk
-│   ├── typescript/            # OPTIONAL
-│   └── python/                # OPTIONAL
+│   ├── typescript/            # package @zcie/client (ADR-012)
+│   └── python/                # package zcie (ADR-012)
 ├── proto/zcie/v1/             # OPTIONAL (gRPC)
 ├── migrations/{kv,search}/    # schema migration notes and code
 ├── tests/                     # test phase only (docs/13-test-plan.md)

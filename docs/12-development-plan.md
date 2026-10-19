@@ -54,6 +54,8 @@ When a task says "Set up crate `X`", do these steps:
 | P1 — Durable engine | D-006 to D-025 | Daemon captures events durably. Memory, tasks, links, timeline, exact query over HTTP. |
 | P2 — Code intelligence | D-026 to D-037 | Repository scan, watcher, Git, symbols, search, expand, freshness. |
 | P3 — Integrations | D-038 to D-044 | Rust SDK, CLI, MCP gateway, Claude Code and Git adapters, forget, docs. |
+| P4 — Context efficiency (ADR-017) | D-055 to D-065 | Fewer tokens and fewer file scans for the same or better results: repository map, graph ranking, compression, localization, batch expand. |
+| P5 — Evidence-first context (ADR-019, ADR-020) | D-066 to D-082 | Query trace, isolated paired benchmark, intents, source-slice evidence, session working set, symbol identity, call edges, provenance, scope, freshness. |
 | T — Test phase | `docs/13-test-plan.md` | All tests written and passing. |
 | A — Acceptance | `docs/14-acceptance-criteria.md` | All criteria examined and recorded. |
 
@@ -780,6 +782,591 @@ When a task says "Set up crate `X`", do these steps:
 - **Done when:**
   - TS-14 passes.
   - A real Claude Code session in a new folder writes `.claude/zcie_id`, and a session in another project answers a question about it.
+
+### D-046 — One-turn answers and operational checks (ADR-010)
+
+- [x] Done
+- **Goal:** More questions are answered from the injected capsule in one turn. Problems that stop the memory are visible.
+- **Read:** `docs/adr/ADR-010-one-turn-answers-and-operations.md`.
+- **Files:** `crates/zcie-query/src/{relevance,planner,routes}.rs`, `crates/zcie-parse/src/{lib.rs,extractors/typescript.rs,extractors/python.rs}`, `crates/zcie-ingest/src/processors/{file,commit,scan}.rs`, `apps/zcie/src/commands/{doctor,service,daemon}.rs`, `adapters/claude-code/hooks/{inject-context,session-start}.sh`.
+- **Steps:**
+  1. Add `match_coverage` and use it in the context hook gate. Show symbol signatures in the capsule.
+  2. Extract TypeScript and Python constants. Add `PARSER_VERSION`.
+  3. Fall back to the lexical search for `implementation` questions with no task.
+  4. Add `zcie doctor`, `zcie daemon install|uninstall`, the waiting `daemon stop`, the SessionStart notice and the dead-letter sweep.
+- **Done when:**
+  - TS-06-13, TS-06-14, TS-07-11, TS-07-12 and TS-14-16 pass.
+  - In the 3-project benchmark, the expected facts of all 12 tasks are in the capsule, and 11 of 12 everyday prompts get no capsule.
+
+---
+
+### D-047 — Capsule once per session (ADR-010 section 6)
+
+- [x] Done
+- **Goal:** A long session does not get the same capsule again.
+- **Files:** `adapters/claude-code/hooks/{inject-context,session-start,common}.sh`.
+- **Done when:** TS-11-09 passes; the long-session benchmark shows no loss of correctness.
+
+### D-048 — 1M-line scale benchmark
+
+- [x] Done
+- **Goal:** Measure indexing, storage, memory and latency at 1,000,000 lines.
+- **Files:** `benchmarks/end-to-end/scale.py`, `benchmarks/results/scale-2026-10-16.md`.
+- **Done when:** The report has the values with and without vector search.
+
+### D-049 — TypeScript and Python SDKs (ADR-012)
+
+- [x] Done
+- **Files:** `sdk/typescript/`, `sdk/python/`, `tests/integration/sdks.rs`.
+- **Done when:** TS-15-01 and TS-15-02 pass.
+
+### D-050 — OpenCode adapter (ADR-012)
+
+- [x] Done
+- **Files:** `adapters/opencode/`, `apps/zcie/src/commands/opencode.rs`.
+- **Done when:** TS-15-03 passes; a real OpenCode run sends the capsule to the model.
+
+### D-051 — Local vector search (ADR-011)
+
+- [x] Done
+- **Files:** `crates/zcie-vector/`, `crates/zcie-search/src/lexical/writer.rs`, `crates/zcie-query/src/{fusion,routes}.rs`, `crates/zcie-ingest/src/processors/search.rs`, `crates/zcie-core/src/{config,startup}.rs`, `apps/zcie/src/commands/vector.rs`, `benchmarks/vector/eval.py`.
+- **Done when:** TS-16 passes; the evaluation shows no loss for exact names; the Claude Code benchmarks show no regression.
+
+### D-052 — Memory accuracy (ADR-013)
+
+- [x] Done
+- **Files:** `crates/zcie-search/src/lexical/{schema,reader,writer,document}.rs`, `crates/zcie-query/src/{relevance,synonyms,listing,classify,planner,items}.rs`, `crates/zcie-memory/src/extraction/{mod,correction,context}.rs`, `crates/zcie-memory/src/capture/mod.rs`, `crates/zcie-vector/src/{model,tokenize,unigram,text,lib}.rs`, `crates/zcie-core/src/{config,startup}.rs`, `apps/zcie/src/commands/{vector,import}.rs`, `adapters/claude-code/hooks/{common,inject-context,user-prompt-submit}.sh`, `adapters/opencode/zcie.js`, `benchmarks/memory-30/`, `benchmarks/user-ideas/`.
+- **Done when:** TS-17 passes; the 30-stage test in new Claude Code sessions answers each question correctly; the user-ideas questions are answered from the memory.
+
+### D-053 — npm package, setup wizard and verification (ADR-014)
+
+- [x] Done
+- **Files:** `npm/zcie/`, `scripts/packaging/build-npm.sh`, `apps/zcie/src/commands/setup/{mod,settings,prompt,apply,config,verify,live}.rs`, `apps/zcie/src/commands/{service,daemon,vector,mod}.rs`, `apps/zcie/src/commands/claude/{mod,setup}.rs`, `apps/zcie/src/main.rs`, `adapters/opencode/zcie.js`.
+- **Done when:** TS-18 passes; an npm installation in an isolated prefix passes `zcie verify --live`.
+
+### D-054 — Project add, project status, indexing only of added folders (ADR-015)
+
+- [x] Done
+- **Files:** `apps/zcie/src/commands/{project,project_add,import}.rs`, `crates/zcie-api/src/{project_status,projects,write_ops}.rs`, `crates/zcie-types/src/{api,registry}.rs`, `crates/zcie-ingest/src/queues/mod.rs`, `crates/zcie-core/src/{watchers,startup}.rs`, `crates/zcie-fs/src/watcher.rs`, `crates/zcie-store/src/{layout,recovery/mod,rocksdb/mod}.rs`, `gateways/http/src/routes.rs`, `sdk/rust/src/lib.rs`.
+- **Done when:** TS-18-07 and TS-19 pass; the live queue of the user is empty after the startup sweep.
+
+## 6a. Phase P4 — Context efficiency (ADR-017)
+
+Do these tasks in number order. Read `adr/ADR-017-context-efficiency.md` first. Each task adds a setting in `engine.toml` that turns its behavior off (section `[context]`), with the default "on", unless the task says other. Do not write tests in these tasks; TS-20 in `13-test-plan.md` is the test phase of P4.
+
+### D-055 — Benchmark baseline for context efficiency
+
+- [x] Done
+- **Goal:** The token use and the correctness of the current version are recorded, so that each later task can be compared with them.
+- **Read:** ADR-017; `benchmarks/claude-ab/run_ab.py`; `benchmarks/memory-30/run.py`; `benchmarks/user-ideas/run.py`.
+- **Files:** `benchmarks/claude-ab/run_ab.py`, `benchmarks/context/locate.json` (new), `benchmarks/context/run.py` (new), `benchmarks/context/README.md` (new), `benchmarks/user-ideas/generic.json` (new), `benchmarks/results/context-baseline-<date>.md` (new).
+- **Steps:**
+  1. In `run_ab.py`, run Claude Code with `--output-format stream-json`. Count the tool calls by name (Read, Grep, Glob, Bash, `mcp__zcie__*`) and the tokens of each tool result. Store them in each result record as `tool_calls` and `tool_result_tokens`.
+  2. Make `benchmarks/context/locate.json`: 20 tasks of the form "where must I change X". Use the sample projects of `benchmarks/samples` and tantivy. Each task has the expected file paths.
+  3. Make `benchmarks/context/run.py`. It runs each task in a new session and records the first file that the model reads (the first Read call), the tool calls and the tokens.
+  4. Make `benchmarks/user-ideas/generic.json`: 15 short generic prompts that name no project fact ("bunların planını oluştur", "devam et", "bunu düzelt", "testleri çalıştır", …).
+  5. Run the code tasks (3 projects and tantivy, 2 runs each), the localization set, the 30-stage test and the user-ideas test. Write the numbers in `benchmarks/results/context-baseline-<date>.md`: input tokens, output tokens, tool calls by name, capsule tokens, correct answers.
+- **Done when:**
+  - The baseline file has all numbers that AC-32 to AC-36 need.
+
+### D-056 — Capsule hygiene
+
+- [x] Done
+- **Goal:** The capsule has no duplicate and no unrelated item, and the best items are at the positions that models read best.
+- **Read:** ADR-017 decision 3; `adapters/claude-code/hooks/inject-context.sh`; `crates/zcie-query/src/{planner,dedupe,followups}.rs`.
+- **Files:** `crates/zcie-query/src/{planner,dedupe,followups,relevance}.rs`, `crates/zcie-query/src/capsule_rules.rs` (new), `adapters/claude-code/hooks/inject-context.sh`, `adapters/opencode/zcie.js`, `crates/zcie-core/src/config.rs`.
+- **Steps:**
+  1. Drop a result whose full text is the same as the full text of a better result. Merge two memory records of one event into one item.
+  2. Drop a `follow_up` text that is the same as the title or the full text of an item of the response. Show each follow-up text once in a response.
+  3. Add the field `capsule` (bool) to the query response. It is false for a prompt with fewer than 4 content words and no name, ref, path or version. The hooks and the OpenCode plugin print no capsule when it is false.
+  4. Order the shown items: the best item first, the second best item last, the others between them in rank order.
+  5. Set a token budget for each query class: overview 900, list of decisions 2,000, other classes 1,200. The hook budget is a maximum only.
+  6. Add `[context] capsule_rules = true`.
+- **Done when:**
+  - The 15 prompts of `generic.json` get no capsule.
+  - The prompt "bunların planını oluştur" in the ZCIEngine project gets no capsule.
+
+### D-057 — References between files
+
+- [x] Done
+- **Goal:** The index knows which file uses the symbols that another file defines. This is the input of the repository map.
+- **Read:** `crates/zcie-parse/src/lib.rs`; `crates/zcie-parse/src/extractors/`; `crates/zcie-ingest/src/processors/file.rs` (the `Imports` edges).
+- **Files:** `crates/zcie-parse/src/{lib,references}.rs`, `crates/zcie-parse/src/extractors/{rust,typescript,python}.rs`, `crates/zcie-ingest/src/processors/file.rs`, `crates/zcie-store/src/layout.rs`.
+- **Steps:**
+  1. In the parser, collect the identifiers that a file uses and does not define (call names, type names, imported names). Keep at most 2,000 names for each file. Ignore names with fewer than 3 characters and the keywords of the language.
+  2. Store them as `lookup: t/"file_refs"/<file id>` (one value with the list of names).
+  3. When a file is indexed, find the files that define each name (`sym_name` lookup of the workspace). Add the edge `file -References-> file`, status `inferred`, with the count of uses as the weight in the evidence note.
+  4. Delete the old `References` edges of the file before the new ones are written.
+  5. Increase `PARSER_VERSION`. The next scan then indexes all files again.
+- **Done when:**
+  - In the fixture repository, the file that calls `attach_to_bone` has a `References` edge to the file that defines it.
+
+### D-058 — Repository map
+
+- [x] Done
+- **Goal:** A token-budgeted map of the most important files and their main symbols. The model goes to the right file without file scans.
+- **Read:** ADR-017; Aider "Building a better repository map with tree sitter"; `crates/zcie-query/src/overview.rs`.
+- **Files:** `crates/zcie-query/src/repomap.rs` (new), `crates/zcie-query/src/{lib,overview,planner}.rs`, `crates/zcie-types/src/query.rs`, `gateways/mcp/src/tools.rs`, `adapters/claude-code/hooks/session-context.sh`, `crates/zcie-core/src/config.rs`.
+- **Steps:**
+  1. Build a graph of the current files of the project. The edges are `References` (weight = count of uses) and `Imports` (weight 1).
+  2. Run personalized PageRank: 20 iterations, damping 0.85. The personalization vector gives weight to:
+     - the files of the query results;
+     - the files that the session changed (`file.changed` events);
+     - the paths named in the prompt.
+     With no seed, use a uniform vector.
+  3. Render the map in rank order: the file path, then the signature lines of its top symbols (by number of references from other files). Stop at the token budget (default 500).
+  4. Add the query mode `map` (`QueryMode::Map`) and `[context] repo_map_budget = 500`.
+  5. Add the map to the project card (overview) under the top-level list.
+  6. At SessionStart (source `startup`), print the map of the project once, if the project has an indexed folder.
+  7. In the `zcie_query` tool description, name the mode `map`.
+- **Done when:**
+  - `zcie query --mode map` prints a map of 500 tokens or fewer for the ZCIEngine project.
+  - With the question "query planner rank candidates", the first file is `crates/zcie-query/src/planner.rs`. (With no question, the most used files come first: `layout.rs`, `ids.rs`, `rocksdb/mod.rs`; that is the expected result of the graph.)
+- **Note (implementation):** D-057 stores the used names of each file (`file_refs`), not `References` edges; the map joins them with the definitions when it builds the graph. Edges written at index time would depend on the order of the files (a use indexed before its definition gets no edge). The map seeds come from the search hits of the question and from specific names (snake_case or camelCase, 8 characters or more).
+
+### D-059 — Context text for symbols and passages
+
+- [x] Done
+- **Goal:** Each indexed symbol and passage carries the context that makes it findable alone (contextual retrieval), with no model call.
+- **Read:** ADR-013 section 6 (follow-up context); `crates/zcie-vector/src/text.rs`; `crates/zcie-ingest/src/processors/search.rs`.
+- **Files:** `crates/zcie-ingest/src/processors/search.rs`, `crates/zcie-vector/src/text.rs`, `crates/zcie-search/src/lexical/document.rs`.
+- **Steps:**
+  1. For a symbol, add to its search body and vector text:
+     - the path words;
+     - the names of its containers (module, class, impl);
+     - the first comment line of its file.
+  2. For a passage of a long document or a pasted text, add the title of the document and the nearest heading above the passage.
+  3. Keep the shown title and snippet the same; only the indexed text gets the context.
+  4. Start a search rebuild once (registry `context_text_v1`).
+- **Done when:**
+  - The benchmark question "penalty percentage for overdue invoices" ranks `LATE_FEE_PERCENT` at rank 1 or 2 (before: rank 2 to 4).
+
+### D-060 — Graph ranking for multi-hop questions
+
+- [x] Done
+- **Goal:** A question that connects a task, a commit, a file and a test gets the whole chain in one answer.
+- **Read:** HippoRAG (personalized PageRank from query entities); `crates/zcie-graph/src/`; `crates/zcie-query/src/routes.rs`.
+- **Files:** `crates/zcie-query/src/graph_rank.rs` (new), `crates/zcie-query/src/{routes,planner}.rs`, `crates/zcie-core/src/config.rs`.
+- **Steps:**
+  1. Find the seed entities of the question: task refs, symbol names, file paths, commit SHAs and project names that the index has.
+  2. Collect the subgraph around the seeds: depth 3 and at most 2,000 nodes. Edge weights: `verified` 1.0, `inferred` 0.5, `candidate` 0.2.
+  3. Run personalized PageRank from the seeds (20 iterations, damping 0.5).
+  4. Add the top 10 nodes as candidates with the score `0.6 × rank score`. A node on a path between two seeds gets the bonus 0.2.
+  5. Add `[context] graph_rank = true`.
+- **Done when:**
+  - In the fixture repository, "#89 hangi dosyayı değiştirdi ve hangi test geçti?" returns the task, the commit, the file and the test event in the first 6 results.
+
+### D-061 — Snippet compression
+
+- [x] Done
+- **Goal:** The capsule shows only the sentences and lines that the question needs.
+- **Read:** LLMLingua (sentence filtering); `crates/zcie-query/src/relevance.rs` (`best_window`).
+- **Files:** `crates/zcie-query/src/compress.rs` (new), `crates/zcie-query/src/{planner,relevance}.rs`, `crates/zcie-core/src/config.rs`.
+- **Steps:**
+  1. Split a memory, event or file snippet into sentences (and code lines for code).
+  2. Keep:
+     - each sentence with a question term;
+     - the sentence after it;
+     - each sentence with a number, a version, a path or a name of the question.
+     Keep the order of the text.
+  3. Replace each dropped run of sentences with "…".
+  4. Do not compress a snippet of 300 characters or fewer.
+  5. Set the maximum to 450 characters for an item (600 at first; 450 after the measurement of D-065) and 1,200 characters for the README of a project card.
+  6. Add `[context] compress = true`.
+- **Done when:**
+  - The capsules of the 30-stage simulation have 25 % fewer tokens or more, and `simulate.py` still gives 17/17.
+
+### D-062 — Localization mode
+
+- [x] Done
+- **Goal:** For a change request, one call returns the files, the symbols and the line ranges to read, coarse to fine (Agentless, AutoCodeRover).
+- **Read:** Agentless (localization phases); `crates/zcie-query/src/{routes,repomap,graph_rank}.rs`.
+- **Files:** `crates/zcie-query/src/locate.rs` (new), `crates/zcie-query/src/{planner,classify}.rs`, `crates/zcie-types/src/query.rs`, `gateways/mcp/src/tools.rs`.
+- **Steps:**
+  1. Add the query mode `locate`. The classifier also selects it for change requests ("X'i değiştir", "where must I change", "add … to …").
+  2. Step 1: rank the files with the search hits, the repository map rank and the graph rank. Keep the top 5 files.
+  3. Step 2: in each file, rank its symbols by the question terms and the references. Keep the top 3 symbols.
+  4. Step 3: return the line range of each symbol and 5 lines of context. Do not return the source.
+  5. Output format, one line for each symbol: `path:start-end symbol — signature`. The output has 300 tokens or fewer.
+  6. In the capsule, show the locate result for a change request instead of the normal results.
+- **Done when:**
+  - In the localization set, the first expected file is in the locate result for 16 of 20 tasks or more.
+- **Result (model-free, `benchmarks/context/offline_locate.py`, final build):** the expected file is first for 10 of 20 tasks and in the top 3 for 17 of 20 (so 17 of 20 or more are in the result of 5 files).
+
+### D-063 — Batch expand
+
+- [x] Done
+- **Goal:** One tool call returns the source of several refs, so that the model does not read whole files one by one.
+- **Read:** SWE-agent (windows of at most 100 lines); `crates/zcie-query/src/expand.rs`; ADR-006.
+- **Files:** `crates/zcie-query/src/expand.rs`, `crates/zcie-types/src/query.rs`, `gateways/mcp/src/tools.rs`, `adapters/claude-code/hooks/read-guard.sh`.
+- **Steps:**
+  1. `zcie_expand` accepts a list of refs or `path:start-end` ranges (at most 10) and one token budget for all of them.
+  2. Each range is at most 100 lines. A longer range gets its first 100 lines and the note "more: path:start-end".
+  3. A symbol ref can have `with: ["callers", "tests"]`. The response then adds the signature lines of its callers and its tests (at most 5 each).
+  4. The read guard hook tells the model to use `zcie_expand` with ranges when it reads a file of more than 400 lines with no offset.
+- **Done when:**
+  - One `zcie_expand` call with 3 ranges returns the 3 sources within the budget.
+- **Design note:** ZCIE has no CALLS edges. The callers and the tests come from the file references of D-057: the files that use the name of the symbol. A file path with "test" or "spec" gives a test line; other files give caller lines. Each line is the first call of the name in the file; import lines are not shown. The code is in `crates/zcie-query/src/expand_batch.rs`.
+
+### D-064 — Local reranker (spike, then decision)
+
+- [x] Done
+- **Goal:** Find out if a local cross-encoder improves the ranking enough to justify its memory and its latency.
+- **Read:** ADR-017; cross-encoder and late interaction comparison (sources of ADR-017).
+- **Files:** `crates/zcie-rerank/` (new, optional crate), `benchmarks/vector/eval.py`, `docs/adr/ADR-018-reranker.md` (new).
+- **Steps:**
+  1. Select a multilingual cross-encoder of 300 MB or less with a permissive license. Run it on the CPU in Rust (`candle` or ONNX Runtime).
+  2. Rerank the top 30 candidates of each question of `benchmarks/vector/eval.py`, and of the user-ideas questions.
+  3. Measure hit@1, MRR and the added p95 latency on the computer of the user.
+  4. Write the result in ADR-018:
+     - Keep the reranker (setting `[context] rerank = true`) only if hit@1 improves by 3 questions or more and the added p95 latency is 100 ms or less.
+     - Else record the numbers and remove the code.
+- **Done when:**
+  - ADR-018 has the measured numbers and the decision.
+
+- **Result:** the reranker is not added (ADR-018). The added p95 latency on real memory records is 542 ms or more; only one model and order combination improves hit@1 by 3, on one set. The spike script is `benchmarks/rerank/spike.py`.
+
+### D-065 — Result measurement
+
+- [x] Done
+- **Goal:** The effect of P4 is measured with the same benchmark as the baseline.
+- **Files:** `benchmarks/results/context-efficiency-<date>.md` (new), `docs/adr/ADR-017-context-efficiency.md` (section "Results").
+- **Steps:**
+  1. Run the benchmarks of D-055 again, with all P4 settings on.
+  2. Run the code tasks once with each P4 setting off, one at a time, to find the effect of each change.
+  3. Write the numbers and the comparison with the baseline.
+- **Done when:**
+  - The results file has the numbers that AC-32 to AC-36 need.
+- **Result:** `benchmarks/results/context-efficiency-2026-10-17.md` and ADR-017 section "Results". AC-34, AC-35 and AC-36 pass; AC-32 and AC-33 fail (see the analysis in the results file).
+
+---
+
+## 6b. Phase P5 — Evidence-first context (ADR-019)
+
+Do the tasks in release order: P5.1 (D-066, D-067), P5.2 (D-068, D-069, D-072), P5.3 (D-070, D-071, D-076), P5.4 (D-073, D-074, D-075), P5.5 (D-077, D-078, D-079), P5.6 (D-080). Start a release only after the measured result of the earlier release is recorded in `benchmarks/results/`.
+
+> **Warning:** Do not add a model, a database, an ANN library or a service in P5. A new grammar crate or a vector snapshot format needs its own ADR first.
+
+### D-066 — Query trace
+
+- [x] Done
+- **Goal:** One query shows why each candidate was selected or dropped, and how long each stage took.
+- **Read:** ADR-019; `crates/zcie-query/src/{planner,routes,graph_rank}.rs`.
+- **Files:** `crates/zcie-types/src/query.rs`, `crates/zcie-query/src/{planner,trace}.rs` (`trace.rs` new), `apps/zcie/src/commands/data.rs`, `gateways/mcp/src/tools.rs` (no change of the tool schema).
+- **Steps:**
+  1. Add the optional request field `explain` (default false) and the optional response field `trace`.
+  2. The trace has: the class, the mode, the intent (after D-068), the question terms, the candidate count of each source (route, graph), and the duration of the stages route, graph, rank and compose in milliseconds.
+  3. The trace has one line for each candidate: ref, kind, source, score, and the reason it was kept or dropped (`kept`, `duplicate`, `echo`, `below_cut`, `over_budget`).
+  4. Titles in the trace have at most 60 characters. The trace is never written to a log. Keys are never in a trace.
+  5. Add `zcie query --explain`. It prints the trace after the result.
+- **Done when:**
+  - `zcie query --explain "<T7 prompt>"` shows the candidates of T7 and the reason that each one was kept or dropped.
+  - A response without `explain` is unchanged (same fields, same token count).
+
+- **Result:** `zcie query --explain` on the T7 prompt: 91 route candidates, 0 graph candidates; the 6 garbage-collection symbols are kept, but only with their signatures (no bodies), and a test function ranks first. This is the evidence gap of T7 (D-068, D-069).
+
+### D-067 — Isolated, paired benchmark
+
+- [x] Done
+- **Goal:** Two runs of the same task set start from the same store and do not change each other.
+- **Read:** ADR-019; `benchmarks/claude-ab/run_ab.py`; `benchmarks/context/run.py`.
+- **Files:** `benchmarks/isolated/{snapshot.py,run.py,report.py,README.md}` (new).
+- **Steps:**
+  1. `snapshot.py` makes a frozen ZCIE home: a fresh daemon indexes the benchmark projects and stores the seed memory of the task sets. It writes the home and a manifest (projects, ZCIE version, file hashes of the configuration).
+  2. `run.py` runs each trial in a copy-on-write clone of the frozen home (`cp -c` on APFS), with its own daemon on its own port, and deletes the clone after the trial. Prompts of a trial never reach the frozen home.
+  3. Conditions: `A0` (no hooks, default tools), `A0P` (no hooks, ZCIE tool profile `auto`), `U` (ZCIE hooks, default tools), `UP` (ZCIE hooks and profile `auto`). All use the same model, Claude Code version, task input and tool set.
+  4. For each task and repetition, the conditions run in a random order (seeded). Each record has the condition, the seed, the ZCIE version and the Claude Code version.
+  5. Record: correct answer, check result of edit tasks, tool calls by name, input, cache-creation, cache-read and output tokens, cost and wall time.
+  6. `report.py` gives, per task class (`code`, `edit`, `locate`, `memory`), the mean of each condition, the paired difference to `A0` and a 95 % bootstrap interval. It does not combine unlike task classes.
+- **Done when:**
+  - Two runs of the same set with the same seed start from byte-identical stores (manifest hashes are equal).
+  - The frozen home is unchanged after a run.
+
+- **Result:** `benchmarks/results/isolated-p51-2026-10-17.md`: 188 runs, frozen home unchanged. Against `A0`: code `U` −46 %, `UP` −72 % tokens; edit `U` +15 % (the weak group).
+
+### D-068 — Intent selection
+
+- [x] Done
+- **Goal:** The planner selects the evidence for the next action of the agent.
+- **Read:** ADR-019; `crates/zcie-query/src/{classify,planner,locate,overview}.rs`.
+- **Files:** `crates/zcie-query/src/{intent,planner}.rs` (`intent.rs` new), `crates/zcie-types/src/query.rs`.
+- **Steps:**
+  1. Add `QueryResponse.intent` (optional): `explain`, `locate`, `edit`, `trace`, `memory` or `general`. The selection is deterministic (phrases and the query class), with no model.
+  2. `edit`: an instruction to change code that names a symbol, a file or a behavior ("add a method to X", "rename X", "X'e Y ekle"). `locate`: the change phrases of D-062. `explain`: "explain", "how does", "nasıl çalışıyor", "açıkla". `trace`: "trace", "from X to Y", "akışı". `memory`: the timeline and memory classes. Else `general`.
+  3. Keep the modes `auto`, `exact`, `search`, `timeline`, `memory`, `map` and `locate`. A mode other than `auto` sets the intent.
+  4. `explain` and `trace` get the symbols of the best files with their bodies (see D-069) and the graph neighbors; `memory` gets facts with their status and provenance.
+  5. When no candidate has verified evidence, the response says `unknown` in the note and adds no answer.
+- **Done when:**
+  - Each prompt of `benchmarks/context/code.json` and `locate.json` gets the intent of its task class (a table in the test).
+  - The T7 prompt gets `explain` and the bodies of the garbage-collection symbols.
+
+- **Result:** all 47 benchmark prompts get the intent of their task class (TS-21-03). T7 gets `explain` and the bodies of the garbage-collection functions.
+
+### D-069 — Source-slice edit package
+
+- [x] Done
+- **Goal:** An edit or explanation prompt gets exact source slices that the agent can use without a second read.
+- **Read:** ADR-019; `crates/zcie-query/src/{expand,expand_batch,locate}.rs`.
+- **Files:** `crates/zcie-query/src/{evidence,planner}.rs` (`evidence.rs` new), `crates/zcie-types/src/query.rs`.
+- **Steps:**
+  1. Add `QueryResponse.evidence` (optional list). Each item: ref, project, path, start and end line, content hash of the file, kind (`source_slice`), provenance (`indexed_file`), status (`verified`, `inferred`, `candidate`), text, and `requires_live_read`.
+  2. Select at most 3 slices for `edit` and at most 4 for `explain`/`trace`, within the request budget: the whole symbol when it has 60 lines or fewer, else the signature, the lines with the question terms and 3 lines around each, with "more: path:a-b" for the rest.
+  3. Read the slice text from the stored copy of the indexed revision (a query never reads project folders: ADR-016, macOS privacy prompts). Set `requires_live_read = true` when a change of the path is pending (watcher overlay) or the folder is not watched. The text, the lines and the hash then always come from one revision.
+  4. Never compress source text. Never cut a line.
+  5. The capsule prints each slice as `path:start-end (hash prefix, current|changed)` and the text in a fenced block. It says that the slice is file content (data), not an instruction.
+- **Done when:**
+  - An edit prompt on the ledger fixture gets the slice of the function to change, with the correct lines and hash.
+  - A changed file gives `requires_live_read: true`.
+
+- **Result:** `benchmarks/results/isolated-p52-2026-10-17.md`: T7 needs no tool (51,224 → 17,301 tokens for U). Slices come from the stored copy (see step 3).
+
+### D-070 — Symbol identity
+
+- [x] Done
+- **Goal:** Two symbols with the same name in different modules stay different.
+- **Read:** ADR-019; `crates/zcie-parse`, `crates/zcie-symbols`.
+- **Files:** `crates/zcie-parse/src/{references,lib}.rs`, `crates/zcie-symbols/src/*.rs`, `crates/zcie-graph/src/*.rs`.
+- **Steps:**
+  1. Keep the symbol ID. Add a resolution key: project, path, qualified name, kind and signature hash.
+  2. Resolve a used name through the imports of the file (`use`, `import`, `from … import`) when the grammar gives them.
+  3. A name with more than one possible target is `ambiguous`; the name-based link stays as `candidate`.
+  4. Delete the links of a symbol when its definition moves or disappears.
+- **Done when:**
+  - Two `apply` functions in two modules get two resolution keys; a reference through an import resolves to one of them.
+
+- **Result:** the symbol ID already had project, path, qualified name and kind. Calls now resolve through the same file, a qualified path or an import of the module of the target; a call that resolves to another definition is not a caller (`crates/zcie-query/src/calls.rs`, TS-21-09).
+
+### D-071 — Call edges with evidence
+
+- [x] Done
+- **Goal:** `CALLS` edges exist for the supported grammars, with their evidence.
+- **Read:** ADR-019; D-070.
+- **Files:** `crates/zcie-parse/src/calls.rs` (new), `crates/zcie-ingest/src/processors/file.rs`, `crates/zcie-graph/src/*.rs`, `crates/zcie-query/src/expand_batch.rs`.
+- **Steps:**
+  1. Extract call sites (Rust, TypeScript, Python) with their line.
+  2. Make a `CALLS` edge with evidence `ast_resolved` (status `verified`) only when D-070 resolves the target. Else evidence `ast_approximate` (status `candidate`).
+  3. Store the file revision and the line of each call.
+  4. `with: ["callers"]` returns resolved callers first and marks approximate ones.
+- **Done when:**
+  - The ledger fixture gives a verified `CALLS` edge `invoice_total → apply_late_fee`.
+
+- **Design note:** the call sites of each file are stored (`lookup: t/file_calls/<file>`, parser version 4, Rust macros included) and resolved at query time, so the order of indexing does not matter; no stored `CALLS` edges. `with: ["callers"]` and "who calls X" give `[verified: import]`, `[inferred: only definition]` or `[candidate: N definitions]`.
+
+### D-072 — Adaptive capsule and session working set
+
+- [x] Done
+- **Goal:** The capsule depends on the intent and on what the session already has.
+- **Read:** ADR-019; `adapters/claude-code/hooks/{inject-context,session-start,common}.sh`.
+- **Files:** `adapters/claude-code/hooks/{inject-context,session-start,common}.sh`, `adapters/opencode/zcie.js`, `crates/zcie-query/src/capsule_rules.rs`.
+- **Steps:**
+  1. The hook keeps, per session, the refs and the file hashes that it delivered (the "seen" file gets `ref hash`). An unchanged ref is not sent again; a changed hash is sent again.
+  2. The hook keeps the last delivered working set (at most 6 refs). A short prompt that points to the conversation ("bunu düzelt", "fix it") gets the slices of the working set again when their files changed, else nothing.
+  3. The capsule format depends on the intent: `edit` and `explain` print the evidence slices (D-069); `locate` prints the ranked files and ranges; `memory` prints facts with status; `general` prints the old format.
+  4. Replace the line "The index is current: … no Grep or Read check" with a per-slice status: "current" slices can be used directly; "changed" slices must be read again.
+  5. The prompt itself is never shown as memory. Source code, negations and prohibitions are never compressed.
+  6. Record the duration of the whole hook (`ZCIE_HOOK_TIMING_FILE`, optional).
+- **Done when:**
+  - The same prompt twice in one session gives the slices once.
+  - A changed file gives its slice again with "changed".
+
+- **Result:** TS-21-07 and TS-21-08 pass; the P4 sentence "no Grep or Read check" is gone. Code tasks of the isolated benchmark: file-search calls 0.35 → 0.17 (U), 0.39 → 0.22 (UP).
+
+### D-073 — Memory provenance
+
+- [x] Done
+- **Goal:** A fact shows who stated it and why it is trusted.
+- **Files:** `crates/zcie-memory/src/*.rs`, `crates/zcie-types/src/memory.rs`, `crates/zcie-query/src/*.rs`.
+- **Steps:**
+  1. Add the author type to memory records: `user`, `assistant`, `tool`, `import`.
+  2. A record from an assistant answer is never `verified` automatically. A user correction supersedes an assistant record; an assistant record never supersedes a user record.
+  3. A conflict is settled by status, then by author type, then by time.
+  4. The query result shows the author type and the status.
+- **Done when:**
+  - An assistant answer that contradicts a user requirement does not supersede it.
+
+- **Result:** the author is read from the source event: a sentence of an assistant answer has `evidence_status = assistant_statement`, ranks below user facts (×0.8) and is labeled in the capsule; corrections come only from user messages. A superseded, disputed or retracted record keeps its status whatever path found it (a defect: such a record was shown as "verified"). TS-21-10, TS-21-14.
+
+### D-074 — Scope boundaries
+
+- [x] Done
+- **Goal:** A query never returns data of a project that the caller did not ask for or may not read.
+- **Files:** `crates/zcie-api/src/*.rs`, `crates/zcie-query/src/*.rs`, `crates/zcie-core/src/config.rs`, `adapters/claude-code/hooks/inject-context.sh`.
+- **Steps:**
+  1. Add the setting `[context] cross_project_hooks` (default true: the current behavior). False: the hooks send `cross_project: false`.
+  2. Check that lexical, vector, graph, cache, memory and expand results have the project scope of the request.
+  3. Keep the admin checks; add tests for the hook key on admin routes.
+  4. Add tests for `../` and absolute paths outside the project in range expansion.
+- **Done when:**
+  - The tests of the scope and the admin routes pass.
+
+- **Result:** setting `cross_project` (hooks: `ZCIE_CROSS_PROJECT`); the hook key cannot use forget, project delete or search rebuild; ranges with `../`, absolute paths or paths outside the project give `not_found` (TS-21-11).
+
+### D-075 — Complete forget
+
+- [x] Done
+- **Goal:** A forgotten record cannot come back from any index, cache or restart.
+- **Files:** `crates/zcie-api/src/forget.rs`, `crates/zcie-search`, `crates/zcie-vector`, `crates/zcie-cache`.
+- **Steps:**
+  1. List the canonical and derived copies of each forgotten record: search documents and passages, vectors, edges, cache entries, blobs.
+  2. Delete them; return a report with the counts.
+- **Done when:**
+  - After forget and a restart, lexical, vector, graph, cache and expand return nothing of the forgotten record.
+
+- **Result:** a task that a forgotten message made is deleted too (it was not; its title is the message). After a forget and a restart, no lexical, vector, list or expand result has the record (TS-21-12).
+
+### D-076 — Per-file freshness
+
+- [x] Done
+- **Goal:** A file that changed on disk is never shown as current.
+- **Files:** `crates/zcie-query/src/{evidence,freshness}.rs`, `crates/zcie-ingest/src/*.rs`.
+- **Steps:**
+  1. A slice compares the disk hash with the indexed hash at query time (D-069) and also checks the pending file jobs of its path.
+  2. Coalesce repeated file jobs of one path; interactive jobs go first.
+  3. A deleted or renamed file gives `status: changed` and no slice.
+- **Done when:**
+  - A file changed after indexing gives `requires_live_read: true` in every evidence item of the file.
+
+- **Result:** a file with a pending change (watcher overlay) gives `requires_live_read: true` in every slice (TS-21-05); a deleted file gives no slice. Repeated file jobs were not coalesced: each job reads the newest file, so a repeat is extra work, not wrong data.
+
+### D-077 — Vector generations and warm start
+
+- [x] Done
+- **Goal:** Measure the vector fill at startup; make it faster only if the measurement shows a need.
+- **Files:** `crates/zcie-vector/src/*.rs`, `crates/zcie-core/src/startup.rs`.
+- **Steps:**
+  1. Add `vector_seq` to the watermarks.
+  2. Profile the fill of the store of the user (302,000 vectors, 68.5 s after P4). Done in P5.2: the fill now stores vectors in batches of 512 under one write lock (80 s; queries during the fill p95 103 ms instead of about 700 ms; `benchmarks/results/isolated-p52-2026-10-17.md`).
+  3. Only if the profile justifies it: write an ADR for a versioned, checksummed snapshot, load it, and replay the delta; a mismatch rebuilds.
+- **Done when:**
+  - The profile is recorded; if a snapshot is added, a warm restart gives the same results as a fresh fill.
+
+- **Result:** ADR-021: no snapshot; the batched fill (80 s, queries p95 103 ms during the fill) is enough. AC-42 does not apply.
+
+### D-078 — Cache identity
+
+- [x] Done
+- **Goal:** A cached response is never older than the data it uses.
+- **Files:** `crates/zcie-cache/src/*.rs`, `crates/zcie-query/src/planner.rs`.
+- **Steps:**
+  1. Add the schema version, the vector model, the code sequence (`code_seq`) and the context settings to the cache key.
+  2. A memory correction invalidates the cache of its project.
+- **Done when:**
+  - A corrected requirement and an edited file never come from a cached capsule.
+
+- **Result:** the cache key has the change counter of the workspace (`code_seq`, now a counter of file changes, also of changes with no event). The vector model and the context settings are fixed for the life of the daemon (a restart clears the cache). TS-21-15.
+
+### D-079 — Shorter tool output with the same meaning
+
+- [x] Done
+- **Goal:** Tool output that repeats delivered source is shorter; errors stay visible.
+- **Files:** `adapters/claude-code/hooks/*.sh`, `apps/zcie/src/commands/claude/*.rs`.
+- **Steps:**
+  1. Check the installed Claude Code version for `PostToolUse.hookSpecificOutput.updatedToolOutput`. Do nothing if it is missing.
+  2. Shorten only a Read result whose range was delivered unchanged in this session. Keep errors, exit codes and stack traces.
+  3. Never change permissions; never approve a tool call.
+- **Done when:**
+  - A controlled run shows fewer duplicate output tokens and the same tool results.
+
+- **Result:** ADR-021: not added. Shortening a Read can hide code that an edit needs; correctness first (ADR-020).
+
+### D-080 — More languages (only on measured need)
+
+- [x] Done
+- **Goal:** Add a grammar only when a benchmark shows missed results in a language of the target repositories.
+- **Steps:**
+  1. Measure the missed results caused by unsupported languages.
+  2. Write an ADR before a new grammar crate.
+- **Done when:**
+  - The ADR records the measurement and the decision.
+
+- **Result:** ADR-021: no new grammar. TS/TSX are 98 % of the code of the projects of the user; C# 14 files (0.2 %).
+
+### D-081 — Verification gate (ADR-020)
+
+- [x] Done
+- **Goal:** A turn that changed code does not end while the check of the project fails.
+- **Read:** ADR-020; Claude Code hooks reference (Stop hook, `decision: block`).
+- **Files:** `adapters/claude-code/hooks/{verify-gate.sh,post-tool-use.sh,common.sh}` (`verify-gate.sh` new), `apps/zcie/src/commands/claude/hooks.rs`, `apps/zcie/src/commands/setup/{settings,apply}.rs`, `adapters/opencode/zcie.js`.
+- **Steps:**
+  1. `post-tool-use.sh` records the changed paths of the turn in `zcie-<session>.changed`.
+  2. `verify-gate.sh` (Stop) reads the list. With no changed path, it does nothing.
+  3. It selects the command: `.claude/zcie_verify` of the project root, else `cargo check --quiet` (Cargo.toml), `npx --no-install tsc --noEmit` (tsconfig.json), `python3 -m py_compile <changed .py files>`.
+  4. It runs the command in the project root with a limit of 120 seconds. On failure it prints `{"decision": "block", "reason": "<first 60 lines>"}`, at most 3 times for one turn; then it lets the turn end with a short note.
+  5. A pass, a timeout or no command: the list is cleared and nothing blocks.
+  6. Add the setting `verify` (`auto`, `off`) to `zcie setup`; `off` does not register the hook.
+- **Done when:**
+  - A test turn that leaves a Rust syntax error is blocked with the compiler error; after the fix it ends.
+
+- **Result:** `adapters/claude-code/hooks/verify-gate.sh` (PostToolUse records the changed files, Stop runs the check), setting `check` (`auto`, `off`). TS-21-13 passes. OpenCode has no gate yet (ADR-021).
+
+### D-082 — Fact correctness of the capsule (ADR-020)
+
+- [x] Done
+- **Goal:** The capsule never gives an unresolved, stale or assistant-only statement as a fact.
+- **Files:** `adapters/claude-code/hooks/inject-context.sh`, `adapters/opencode/zcie.js`, `crates/zcie-query/src/*.rs`.
+- **Steps:**
+  1. Items with status `inferred` or `candidate` are labeled "(not verified)" in the capsule.
+  2. Memory records from assistant answers are labeled "(assistant statement, not confirmed by the user)" (D-073).
+  3. Add an adversarial fixture: a wrong assistant statement, a superseded value, a changed file. No wrong value is given as a fact.
+- **Done when:**
+  - The adversarial fixture test passes; the 30-stage check stays 17/17.
+
+- **Result:** the capsule labels `inferred`/`candidate` items "not verified" and assistant statements "assistant statement, not confirmed by the user" (Claude Code hook and OpenCode plugin). TS-21-10, TS-21-14.
+
+### D-083 — Session records from transcripts (ADR-022)
+
+- [x] Done
+- **Goal:** One record for each interactive Claude Code session: project, ZCIE active, turns, tokens, Read and search calls, capsules.
+- **Files:** `apps/zcie/src/commands/usage/{mod,scan}.rs` (new).
+- **Steps:**
+  1. Read `~/.claude/projects/*/*.jsonl` and `*/<session>/subagents/*.jsonl`; a subagent file adds to its parent session.
+  2. Count each `message.id` once. Skip sessions with `entrypoint` `sdk-cli`.
+  3. Keep the byte offset of each file in `<zcie home>/run/usage-cache.json`; read only new complete lines.
+- **Done when:**
+  - A fixture transcript gives the expected counters; a second scan after an append gives the same counters as one full scan.
+
+- **Result:** `apps/zcie/src/commands/usage/scan.rs`; cache `<zcie home>/run/usage-cache.json`. TS-22-01, TS-22-02. Live: 4,402 files (5 GB), first scan 8.3 s, next scan 0.9 s.
+
+### D-084 — Savings report and `zcie usage` (ADR-022)
+
+- [x] Done
+- **Goal:** For each project, the median tokens per turn with and with no ZCIE, the saving %, and the saved tokens.
+- **Files:** `apps/zcie/src/commands/usage/report.rs` (new), `apps/zcie/src/main.rs`.
+- **Steps:**
+  1. Group sessions by project root (`.claude/zcie_id`, Git root, folder) in the window (`--days`, default 90).
+  2. Compute the saving only when each group has 3 sessions or more; else give the reason.
+  3. Add the hook statistics of `<zcie home>/stats/hooks.jsonl`. Print a table, or the report with `--json`.
+- **Done when:**
+  - The report of the fixture has the expected medians, saving and reason values.
+
+- **Result:** `zcie usage [--json] [--days N] [--no-disk]` (`usage/{mod,report}.rs`); project roots recorded in `<zcie home>/run/usage-roots.json`. TS-22-03, TS-22-04, TS-22-07.
+
+### D-085 — Hook statistics (ADR-022)
+
+- [x] Done
+- **Goal:** The read guard and the verification gate record their actions.
+- **Files:** `adapters/claude-code/hooks/{common,read-guard,verify-gate}.sh`.
+- **Steps:**
+  1. `zcie_stat` in `common.sh` appends one JSON line to `<hooks folder>/../stats/hooks.jsonl`. It never fails the hook.
+  2. `read-guard.sh` records `read_guard` with the lines of the file; `verify-gate.sh` records `gate` with `pass`, `block` or `skipped`.
+- **Done when:**
+  - A hook test finds one line for each action, with no file content.
+
+- **Result:** `zcie_stat` and `zcie_project_root` in `common.sh`; `read_guard`, `gate` and `session` (project root) lines. The read guard no longer limits images and binary files. TS-22-05.
+
+### D-086 — Menu bar app ZCIE Bar (ADR-022)
+
+- [x] Done
+- **Goal:** A macOS menu bar app that shows the saving of each project and a detailed report.
+- **Files:** `apps/zcie-bar/{main.swift,build.sh,README.md}` (new).
+- **Steps:**
+  1. SwiftUI `MenuBarExtra`: the saving % of the last active project in the bar; the project list in the menu.
+  2. A report window: the two groups, capsules, read guard, gate, tokens of each day, the method note.
+  3. `build.sh` builds `~/Applications/ZCIE Bar.app` with `swiftc`; `--login` adds a LaunchAgent.
+- **Done when:**
+  - The app builds, starts, and shows the values of `zcie usage --json`.
+
+- **Result:** `apps/zcie-bar` (SwiftUI `MenuBarExtra`; menu with KPI tiles, saving gauge, 14-day chart, comparison bars; report window with an overview page and a page for each project: tokens per turn, tool calls, token parts, tokens of each day, gate ring; Swift Charts, macOS 14), `build.sh`, `test.sh`. Opening the app shows the report; the login item starts it with `--background`. The app runs `~/.zcie/bin/zcie usage --json --no-disk`, so macOS asks for no protected folder. TS-22-06; live run 2026-10-19.
 
 ---
 
