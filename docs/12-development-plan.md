@@ -1397,6 +1397,15 @@ Do the tasks in release order: P5.1 (D-066, D-067), P5.2 (D-068, D-069, D-072), 
   - `cargo build --workspace` and `cargo clippy --workspace -- -D warnings` pass.
   - TS-26-01 and TS-26-02 pass.
 
+### D-089 — Windows 11 support (ADR-027)
+
+- [x] Done
+- **Goal:** ZCIE builds, installs and runs its hooks on Windows 11 with Git Bash.
+- **Files:** `apps/zcie/src/commands/{mod,daemon,service,doctor,codex,cursor,opencode}.rs`, `apps/zcie/src/commands/claude/{hooks,setup}.rs`, `apps/zcie/src/commands/setup/{apply,live,mod,settings,verify}.rs`, `apps/zcied/src/{lock,signals,main}.rs`, `crates/zcie-core/src/{tree,config}.rs`, `adapters/claude-code/hooks/{common,verify-gate}.sh`, `npm/zcie/bin/zcie.js`, `scripts/packaging/build-npm.sh`, `.github/workflows/ci.yml`.
+- **Done when:**
+  - `cargo clippy --workspace --all-targets -- -D warnings` passes on macOS and on `windows-latest`.
+  - TS-27-01 passes; the CI smoke test (setup, project add, query, verify) passes on `windows-latest`.
+
 ---
 
 ## 7. After the last development task

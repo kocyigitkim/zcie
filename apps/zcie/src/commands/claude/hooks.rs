@@ -1,6 +1,5 @@
 //! Hook scripts embedded in the binary and installed to `<home>/hooks/`.
 
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 /// Each script: file name and content.
@@ -31,9 +30,42 @@ pub fn install(home: &Path) -> anyhow::Result<PathBuf> {
     for (name, content) in SCRIPTS {
         let path = folder.join(name);
         std::fs::write(&path, content)?;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))?;
+        }
     }
     Ok(folder)
+}
+
+/// The shell that runs the hook scripts: `sh`, or Git Bash on Windows (ADR-027).
+#[cfg(unix)]
+pub fn shell() -> PathBuf {
+    PathBuf::from("sh")
+}
+
+/// The shell that runs the hook scripts: `sh`, or Git Bash on Windows (ADR-027). Order:
+/// `ZCIE_BASH`, `CLAUDE_CODE_GIT_BASH_PATH` (set for Claude Code), the default Git folder, the
+/// `bin` folder next to `git.exe` on `PATH`.
+#[cfg(not(unix))]
+pub fn shell() -> PathBuf {
+    let from_env = ["ZCIE_BASH", "CLAUDE_CODE_GIT_BASH_PATH"].iter().filter_map(std::env::var_os).map(PathBuf::from);
+    let default = [r"C:\Program Files\Git\bin\bash.exe".into()];
+    let next_to_git = std::env::var_os("PATH")
+        .into_iter()
+        .flat_map(|path| std::env::split_paths(&path).collect::<Vec<_>>())
+        .filter(|dir| dir.join("git.exe").is_file())
+        .filter_map(|dir| dir.parent().map(|git| git.join(r"bin\bash.exe")));
+    from_env.chain(default).chain(next_to_git).find(|path| path.is_file()).unwrap_or_else(|| PathBuf::from("bash.exe"))
+}
+
+/// The hook command that runs `script` (an installed script path) with `args`. On Windows the
+/// clients start hooks without a POSIX shell, so the command names Git Bash.
+pub fn command(script: &Path, args: &str) -> String {
+    let script = script.display().to_string();
+    let base = if cfg!(unix) { script } else { format!("\"{}\" \"{}\"", shell().display(), script.replace('\\', "/")) };
+    if args.is_empty() { base } else { format!("{base} {args}") }
 }
 
 /// Returns the names of installed scripts that are missing or differ from the scripts in this

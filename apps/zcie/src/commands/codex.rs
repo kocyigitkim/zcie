@@ -3,7 +3,6 @@
 //! The `zcie-mcp` server is added with `codex mcp add`.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use anyhow::Context;
 use clap::Subcommand;
@@ -12,6 +11,7 @@ use serde_json::{Value, json};
 use super::claude::hooks;
 use super::claude::settings;
 use super::claude::setup::ensure_key;
+use super::setup::live::program;
 
 /// The Codex hooks: event and Claude Code script.
 const HOOKS: [(&str, &str); 6] = [
@@ -34,7 +34,7 @@ pub enum CodexAction {
 
 /// Runs one Codex action.
 pub fn run(action: CodexAction, home: &Path, url: &str) -> anyhow::Result<()> {
-    let hooks_file = PathBuf::from(std::env::var("HOME").context("HOME is not set")?).join(".codex/hooks.json");
+    let hooks_file = PathBuf::from(crate::commands::user_home().context("HOME is not set")?).join(".codex/hooks.json");
     let wrapper = home.join("hooks").join("codex-hook.sh").display().to_string();
     let mut root = settings::read(&hooks_file)?;
     remove_hooks(&mut root, &wrapper);
@@ -45,9 +45,9 @@ pub fn run(action: CodexAction, home: &Path, url: &str) -> anyhow::Result<()> {
             hooks::install(home)?;
             add_hooks(&mut root, &wrapper);
             settings::write(&hooks_file, &root)?;
-            let mcp = std::env::current_exe()?.parent().context("no binary folder")?.join("zcie-mcp");
+            let mcp = std::env::current_exe()?.parent().context("no binary folder")?.join(format!("zcie-mcp{}", std::env::consts::EXE_SUFFIX));
             // A second add replaces the entry, so setup can run again.
-            let added = Command::new("codex")
+            let added = program("codex")
                 .args(["mcp", "add", "zcie", "--env", &format!("ZCIE_URL={url}")])
                 .args(["--env", &format!("ZCIE_API_KEY_FILE={}", key_file.display()), "--"])
                 .arg(&mcp)
@@ -65,7 +65,7 @@ pub fn run(action: CodexAction, home: &Path, url: &str) -> anyhow::Result<()> {
                 settings::write(&hooks_file, &root)?;
                 println!("removed the ZCIE hooks from {}", hooks_file.display());
             }
-            if Command::new("codex").args(["mcp", "remove", "zcie"]).output().is_ok_and(|o| o.status.success()) {
+            if program("codex").args(["mcp", "remove", "zcie"]).output().is_ok_and(|o| o.status.success()) {
                 println!("removed the zcie MCP server from Codex");
             }
         }
@@ -75,7 +75,7 @@ pub fn run(action: CodexAction, home: &Path, url: &str) -> anyhow::Result<()> {
 
 /// The hook command of one script.
 fn command(wrapper: &str, script: &str) -> String {
-    format!("{wrapper} {script}")
+    hooks::command(Path::new(wrapper), script)
 }
 
 /// Adds one matcher group per ZCIE hook. Call `remove_hooks` first, so a second setup adds nothing.
@@ -93,10 +93,12 @@ fn add_hooks(config: &mut Value, wrapper: &str) {
     }
 }
 
-/// Removes the matcher groups that run the wrapper. Other hooks stay.
+/// Removes the matcher groups that run the wrapper. Other hooks stay. It matches the file name,
+/// because the Windows command names Git Bash first and uses `/` in the path.
 fn remove_hooks(config: &mut Value, wrapper: &str) {
+    let name = Path::new(wrapper).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
     let ours = |group: &Value| {
-        group["hooks"].as_array().is_some_and(|hooks| hooks.iter().any(|h| h["command"].as_str().is_some_and(|c| c.starts_with(wrapper))))
+        group["hooks"].as_array().is_some_and(|hooks| hooks.iter().any(|h| h["command"].as_str().is_some_and(|c| c.contains(&name))))
     };
     if let Some(events) = config.get_mut("hooks").and_then(Value::as_object_mut) {
         for list in events.values_mut().filter_map(Value::as_array_mut) {

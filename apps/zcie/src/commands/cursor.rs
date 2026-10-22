@@ -64,7 +64,7 @@ fn folders(dir: Option<PathBuf>, global: bool) -> anyhow::Result<(PathBuf, PathB
         .canonicalize()
         .with_context(|| format!("{} does not exist", project.display()))?;
     let config = if global {
-        PathBuf::from(std::env::var("HOME").context("HOME is not set")?).join(".cursor")
+        PathBuf::from(crate::commands::user_home().context("HOME is not set")?).join(".cursor")
     } else {
         project.join(".cursor")
     };
@@ -88,11 +88,7 @@ fn setup(
     });
     ensure_key(home, &key_file, &name)?;
     hooks::install(home)?;
-    let command = home
-        .join("hooks")
-        .join("cursor-hook.sh")
-        .display()
-        .to_string();
+    let command = hooks::command(&home.join("hooks").join("cursor-hook.sh"), "");
     let hooks_file = config.join("hooks.json");
     let mut root = settings::read(&hooks_file)?;
     add_hooks(&mut root, &command);
@@ -157,7 +153,7 @@ fn remove_hooks(config: &mut Value, command: &str) {
 
 fn mcp_entry(key_file: &Path, url: &str, project_dir: &str) -> anyhow::Result<Value> {
     let exe = std::env::current_exe()?;
-    let mcp = exe.parent().context("no binary folder")?.join("zcie-mcp");
+    let mcp = exe.parent().context("no binary folder")?.join(format!("zcie-mcp{}", std::env::consts::EXE_SUFFIX));
     Ok(json!({
         "command": mcp.display().to_string(),
         "args": [],
@@ -171,11 +167,7 @@ fn mcp_entry(key_file: &Path, url: &str, project_dir: &str) -> anyhow::Result<Va
 
 fn remove(home: &Path, dir: Option<PathBuf>, global: bool) -> anyhow::Result<()> {
     let (_, config) = folders(dir, global)?;
-    let command = home
-        .join("hooks")
-        .join("cursor-hook.sh")
-        .display()
-        .to_string();
+    let command = hooks::command(&home.join("hooks").join("cursor-hook.sh"), "");
     let hooks_file = config.join("hooks.json");
     if hooks_file.exists() {
         let mut root = settings::read(&hooks_file)?;

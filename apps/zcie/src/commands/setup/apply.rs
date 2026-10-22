@@ -70,8 +70,8 @@ fn run_daemon(home: &Path, settings: &Settings, engine_changed: bool) -> anyhow:
     let lang = settings.language.as_str();
     let client = Client::new(&settings.url(), "", "setup");
     let binary = daemon::daemon_binary()?;
-    let use_agent = settings.autostart && cfg!(target_os = "macos");
-    let loaded = cfg!(target_os = "macos") && service::is_loaded(home);
+    let use_agent = settings.autostart && cfg!(any(target_os = "macos", windows));
+    let loaded = cfg!(any(target_os = "macos", windows)) && service::is_loaded(home);
     if use_agent && loaded {
         let (_, binary_changed) = service::sync_daemon_copy(&binary, home)?;
         if engine_changed || binary_changed || client.health().is_err() {
@@ -207,7 +207,7 @@ pub fn remove_all(home: &Path, settings: &Settings) -> anyhow::Result<()> {
     if settings.codex {
         codex::run(codex::CodexAction::Remove, home, &settings.url())?;
     }
-    if cfg!(target_os = "macos") {
+    if cfg!(any(target_os = "macos", windows)) {
         service::uninstall(home)?;
     }
     if daemon::is_running(home) {

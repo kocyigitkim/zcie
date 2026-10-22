@@ -437,6 +437,15 @@ Files: `apps/zcie/src/commands/codex.rs` (TS-26-01), `tests/integration/context_
 | TS-26-01 | `remove_hooks` and `add_hooks` twice on a config with a foreign `Stop` group; then `remove_hooks`. | Each ZCIE script has one group; the foreign group stays; after the removal only the foreign group is left. |
 | TS-26-02 | `codex-hook.sh inject-context.sh` on a `UserPromptSubmit` input with a project fact prompt, then a generic prompt, on a test server. | The project prompt gives `hookSpecificOutput` with `hookEventName` `UserPromptSubmit` and `additionalContext` that contains "ZCIE context"; the generic prompt gives no output. |
 
+### TS-27 — Windows 11 support (ADR-027)
+
+Files: `apps/zcie/src/commands/service.rs` (TS-27-01), `.github/workflows/ci.yml` (TS-27-02).
+
+| ID | Input | Expected result |
+|---|---|---|
+| TS-27-01 | `startup_script` for a `zcied.exe` and a home in a folder with a space. | The VBScript quotes both paths and starts the program with window style 0. |
+| TS-27-02 | CI on `windows-latest`: clippy, unit tests, `build-npm.sh`, `npm install -g`, `zcie setup -y`, `zcie project add`, `zcie query`, `zcie verify`, `zcie daemon stop`. | Every step passes. The query finds the symbol. |
+
 ## 6. Token regression
 
 Put these tests in `tests/token-regression/`.

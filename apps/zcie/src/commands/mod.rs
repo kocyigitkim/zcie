@@ -87,12 +87,17 @@ fn api_key(cli: &Cli, home: &std::path::Path) -> String {
     std::fs::read_to_string(home.join("config").join("admin.key")).map(|k| k.trim().to_string()).unwrap_or_default()
 }
 
+/// Returns the user folder: `HOME`, or `USERPROFILE` on Windows (ADR-027).
+pub fn user_home() -> Result<String, std::env::VarError> {
+    std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE"))
+}
+
 /// Returns the ZCIE home folder: `--home`, or `~/.zcie`.
 fn home_dir(cli: &Cli) -> anyhow::Result<PathBuf> {
     if let Some(home) = &cli.home {
         return Ok(home.clone());
     }
-    let user_home = std::env::var("HOME").context("HOME is not set; use --home")?;
+    let user_home = user_home().context("HOME is not set; use --home")?;
     Ok(PathBuf::from(user_home).join(".zcie"))
 }
 

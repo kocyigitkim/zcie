@@ -54,7 +54,7 @@ fn folders(dir: Option<PathBuf>, global: bool) -> anyhow::Result<(PathBuf, PathB
     };
     let project = project.canonicalize().with_context(|| format!("{} does not exist", project.display()))?;
     let config = if global {
-        PathBuf::from(std::env::var("HOME").context("HOME is not set")?).join(".config/opencode")
+        PathBuf::from(crate::commands::user_home().context("HOME is not set")?).join(".config/opencode")
     } else {
         project.join(".opencode")
     };
@@ -95,7 +95,7 @@ fn setup(home: &Path, url: &str, dir: Option<PathBuf>, global: bool, name: Optio
 
 fn mcp_entry(key_file: &Path, url: &str) -> anyhow::Result<Value> {
     let exe = std::env::current_exe()?;
-    let mcp = exe.parent().context("no binary folder")?.join("zcie-mcp");
+    let mcp = exe.parent().context("no binary folder")?.join(format!("zcie-mcp{}", std::env::consts::EXE_SUFFIX));
     Ok(json!({
         "type": "local",
         "command": [mcp.display().to_string()],

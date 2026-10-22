@@ -44,7 +44,7 @@ pub struct UsageArgs {
 pub fn run(args: &UsageArgs, home: &Path, client: &zcie_sdk::Client) -> anyhow::Result<()> {
     let dir = match &args.dir {
         Some(dir) => dir.clone(),
-        None => PathBuf::from(std::env::var("HOME").context("HOME is not set")?).join(".claude/projects"),
+        None => PathBuf::from(crate::commands::user_home().context("HOME is not set")?).join(".claude/projects"),
     };
     let mut report = make_report(&dir, home, args.days, !args.no_disk)?;
     report.index = Some(index::build(home, client, &report.since));

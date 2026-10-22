@@ -58,7 +58,7 @@ impl Default for Settings {
             port: DEFAULT_PORT,
             vector: "multilingual".into(),
             workers: 2,
-            autostart: cfg!(target_os = "macos"),
+            autostart: cfg!(any(target_os = "macos", windows)),
             claude: "user".into(),
             claude_dir: String::new(),
             profile: "auto".into(),
@@ -220,7 +220,7 @@ impl Settings {
 /// Returns an existing folder as an absolute path.
 fn absolute(value: &str) -> anyhow::Result<String> {
     let expanded = match value.strip_prefix("~/") {
-        Some(rest) => PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(rest),
+        Some(rest) => PathBuf::from(crate::commands::user_home().unwrap_or_default()).join(rest),
         None => PathBuf::from(value),
     };
     let path = expanded.canonicalize().with_context(|| format!("{value} is not an existing folder"))?;

@@ -92,7 +92,7 @@ pub fn model_present(home: &Path, name: &str) -> bool {
 /// Returns a verified file of another installation (`~/.zcie/models`), so that a second home or a
 /// new install does not download the same 512 MB again.
 fn local_copy(model: &str, file: &str, expected: &str, target: &Path) -> Option<PathBuf> {
-    let other = PathBuf::from(std::env::var("HOME").ok()?).join(".zcie/models").join(model).join(file);
+    let other = PathBuf::from(crate::commands::user_home().ok()?).join(".zcie/models").join(model).join(file);
     (other != target && other.exists() && hash(&other).ok()? == expected).then_some(other)
 }
 

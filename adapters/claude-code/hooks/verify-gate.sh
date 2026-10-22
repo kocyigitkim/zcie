@@ -56,7 +56,7 @@ nearest() {
             return
         fi
         [ "$dir" = "$3" ] && return
-        dir="$(dirname "$dir")"
+        dir="$(zcie_parent "$dir")"
     done
 }
 

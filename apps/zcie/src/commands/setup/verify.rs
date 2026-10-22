@@ -47,9 +47,13 @@ pub fn run(home: &Path, s: &Settings, live: bool) -> anyhow::Result<()> {
     let l = s.language.as_str();
     println!("\n{}", t(l, "Checking the installation:", "Kurulum doğrulanıyor:"));
     let mut checks = vec![binaries(), tool("curl"), tool("jq"), daemon(s)];
-    if s.autostart && cfg!(target_os = "macos") {
+    if cfg!(windows) {
+        let bash = crate::commands::claude::hooks::shell();
+        checks.push(if bash.is_file() { pass(format!("Git Bash {} (it runs the hooks)", bash.display())) } else { fail("Git Bash is missing: the hooks need it (fix: winget install Git.Git, or set ZCIE_BASH)") });
+    }
+    if s.autostart && cfg!(any(target_os = "macos", windows)) {
         let loaded = crate::commands::service::is_loaded(home);
-        checks.push(if loaded { pass("autostart: launchd agent is loaded") } else { fail("autostart: launchd agent is not loaded (fix: zcie setup)") });
+        checks.push(if loaded { pass("autostart: the login agent is installed") } else { fail("autostart: the login agent is missing (fix: zcie setup)") });
     }
     checks.push(engine_config(home, s));
     if s.claude != "none" {
@@ -58,16 +62,16 @@ pub fn run(home: &Path, s: &Settings, live: bool) -> anyhow::Result<()> {
     checks.extend(memory(home, s));
     checks.push(mcp(home, s));
     if s.opencode {
-        let plugin = PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".config/opencode/plugins/zcie.js");
+        let plugin = PathBuf::from(crate::commands::user_home().unwrap_or_default()).join(".config/opencode/plugins/zcie.js");
         checks.push(if plugin.exists() { pass("OpenCode plugin installed") } else { fail("OpenCode plugin is missing (fix: zcie setup)") });
     }
     if s.cursor {
-        let hooks = PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".cursor/hooks.json");
+        let hooks = PathBuf::from(crate::commands::user_home().unwrap_or_default()).join(".cursor/hooks.json");
         let installed = std::fs::read_to_string(&hooks).is_ok_and(|text| text.contains("cursor-hook.sh"));
         checks.push(if installed { pass("Cursor hooks installed") } else { fail("Cursor hooks are missing (fix: zcie setup)") });
     }
     if s.codex {
-        let hooks = PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".codex/hooks.json");
+        let hooks = PathBuf::from(crate::commands::user_home().unwrap_or_default()).join(".codex/hooks.json");
         let installed = std::fs::read_to_string(&hooks).is_ok_and(|text| text.contains("codex-hook.sh"));
         checks.push(if installed { pass("Codex hooks installed") } else { fail("Codex hooks are missing (fix: zcie setup)") });
     }
@@ -92,7 +96,7 @@ fn report(l: &str, checks: &[Check]) -> anyhow::Result<()> {
 }
 
 fn sibling(name: &str) -> Option<PathBuf> {
-    let path = std::env::current_exe().ok()?.parent()?.join(name);
+    let path = std::env::current_exe().ok()?.parent()?.join(format!("{name}{}", std::env::consts::EXE_SUFFIX));
     path.exists().then_some(path)
 }
 
@@ -107,7 +111,7 @@ fn tool(name: &str) -> Check {
     let found = Command::new(name).arg("--version").stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok_and(|s| s.success());
     match (found, name) {
         (true, _) => pass(format!("{name} found (the hooks need it)")),
-        (false, "jq") => fail("jq is missing: the hooks do nothing without it (fix: brew install jq)"),
+        (false, "jq") => fail("jq is missing: the hooks do nothing without it (fix: brew install jq; Windows: winget install jqlang.jq)"),
         (false, _) => fail(format!("{name} is missing: the hooks need it")),
     }
 }
@@ -134,10 +138,11 @@ fn engine_config(home: &Path, s: &Settings) -> Check {
 fn claude_settings(home: &Path, s: &Settings) -> Check {
     let file = match s.claude.as_str() {
         "project" => PathBuf::from(&s.claude_dir).join(".claude/settings.local.json"),
-        _ => PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".claude/settings.json"),
+        _ => PathBuf::from(crate::commands::user_home().unwrap_or_default()).join(".claude/settings.json"),
     };
     let text = std::fs::read_to_string(&file).unwrap_or_default();
-    let hooks = home.join("hooks").display().to_string();
+    // Hook commands use `/` on Windows too (claude::hooks::command).
+    let hooks = home.join("hooks").display().to_string().replace('\\', "/");
     let parsed = serde_json::from_str::<serde_json::Value>(&text).is_ok();
     match (parsed, text.contains(&format!("{hooks}/inject-context.sh")) && text.contains(&format!("{hooks}/user-prompt-submit.sh"))) {
         (true, true) => pass(format!("Claude Code hooks in {}", file.display())),
@@ -153,7 +158,7 @@ pub fn key_file(home: &Path) -> PathBuf {
 
 /// Runs one installed hook script with a JSON input, like Claude Code does. Returns stdout.
 pub fn run_hook(home: &Path, s: &Settings, script: &str, input: &serde_json::Value) -> String {
-    let child = Command::new("sh")
+    let child = Command::new(crate::commands::claude::hooks::shell())
         .arg(home.join("hooks").join(script))
         .env("ZCIE_URL", s.url())
         .env("ZCIE_API_KEY_FILE", key_file(home))

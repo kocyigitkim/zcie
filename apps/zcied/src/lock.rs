@@ -1,7 +1,6 @@
 //! Single-writer lock and PID file (`docs/adr/ADR-003-single-writer-daemon.md`).
 
 use std::fs::{File, OpenOptions};
-use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, bail};
@@ -17,11 +16,11 @@ impl DaemonLock {
     pub fn acquire(run_dir: &Path) -> anyhow::Result<DaemonLock> {
         std::fs::create_dir_all(run_dir)?;
         let lock_path = run_dir.join("daemon.lock");
-        let file = OpenOptions::new()
-            .create(true)
-            .truncate(false)
-            .write(true)
-            .mode(0o600)
+        let mut options = OpenOptions::new();
+        options.create(true).truncate(false).write(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        let file = options
             .open(&lock_path)
             .with_context(|| format!("cannot open {}", lock_path.display()))?;
         if file.try_lock().is_err() {

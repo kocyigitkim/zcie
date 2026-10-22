@@ -9,6 +9,8 @@ root="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$root"
 version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
 platform="$(node -p 'process.platform + "-" + process.arch')"
+ext=""
+case "$platform" in win32-*) ext=".exe" ;; esac  # Windows: run in Git Bash (ADR-027)
 [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 cargo build --release --bin zcie --bin zcied --bin zcie-mcp
 stage="$root/dist/npm/zcie"
@@ -16,8 +18,8 @@ rm -rf "$stage"
 mkdir -p "$stage/native/$platform"
 cp -R npm/zcie/bin npm/zcie/README.md npm/zcie/package.json "$stage/"
 for program in zcie zcied zcie-mcp; do
-    cp "target/release/$program" "$stage/native/$platform/$program"
-    chmod 755 "$stage/native/$platform/$program"
+    cp "target/release/$program$ext" "$stage/native/$platform/$program$ext"
+    chmod 755 "$stage/native/$platform/$program$ext"
 done
 # Set the version of the Rust workspace and the platforms that the package has.
 node -e '

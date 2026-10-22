@@ -1,0 +1,51 @@
+# Build, unit tests and an end-to-end smoke test on macOS and Windows 11 (ADR-027).
+name: ci
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash  # Git Bash on Windows: the hooks and the package script need it
+    env:
+      LIBCLANG_PATH: ${{ matrix.os == 'windows-latest' && 'C:\Program Files\LLVM\bin' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Tools
+        run: |
+          command -v jq || { [ "$RUNNER_OS" = macOS ] && brew install jq; }
+          jq --version && curl --version | head -1
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Unit tests
+        run: cargo test --workspace --lib --bins
+      - name: Package
+        run: scripts/packaging/build-npm.sh
+      - name: Smoke test (install, setup, index, query, hooks)
+        run: |
+          npm install -g ./dist/zcie-*.tgz
+          zcie setup -y --claude none --autostart false --vector off --import false --live false --no-verify
+          mkdir -p "$RUNNER_TEMP/demo/src" && cd "$RUNNER_TEMP/demo"
+          git init -q && printf 'pub fn apply_discount() {}\n' > src/lib.rs
+          zcie project add
+          zcie query "where is apply_discount defined" | jq -e '.results | length > 0'
+          zcie verify
+          zcie daemon stop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zcie-${{ runner.os }}
+          path: dist/zcie-*.tgz

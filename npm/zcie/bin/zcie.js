@@ -11,7 +11,8 @@ const { spawnSync } = require("node:child_process");
 
 const PLATFORM = `${process.platform}-${process.arch}`;
 const NATIVE = join(__dirname, "..", "native", PLATFORM);
-const PROGRAMS = ["zcie", "zcied", "zcie-mcp"];
+const EXT = process.platform === "win32" ? ".exe" : "";
+const PROGRAMS = ["zcie", "zcied", "zcie-mcp"].map((name) => name + EXT);
 // Commands that work before `zcie setup` (no hint for them).
 const NO_HINT = new Set(["setup", "help", "--help", "-h", "--version", "-V", "uninstall"]);
 
@@ -22,10 +23,11 @@ function fail(message) {
 
 /** npm can drop the executable bit (for example after a copy); set it again. */
 function ensureExecutable(file) {
+  if (process.platform === "win32") return;
   if ((statSync(file).mode & 0o111) === 0) chmodSync(file, 0o755);
 }
 
-const exe = join(NATIVE, "zcie");
+const exe = join(NATIVE, "zcie" + EXT);
 if (!existsSync(exe)) {
   fail(`this package has no build for ${PLATFORM}. Build ZCIE from source (cargo build --release) and use target/release/zcie.`);
 }

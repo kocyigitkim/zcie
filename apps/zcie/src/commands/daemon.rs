@@ -76,7 +76,7 @@ pub fn restart(home: &Path, client: &Client) -> anyhow::Result<()> {
 pub fn daemon_binary() -> anyhow::Result<PathBuf> {
     let exe = std::env::current_exe().context("cannot find the zcie binary path")?;
     let dir = exe.parent().context("zcie binary has no parent folder")?;
-    let path = dir.join("zcied");
+    let path = dir.join(format!("zcied{}", std::env::consts::EXE_SUFFIX));
     if !path.exists() {
         bail!("zcied not found at {}", path.display());
     }
@@ -120,14 +120,55 @@ fn detach(command: &mut Command) {
     command.process_group(0);
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+fn detach(command: &mut Command) {
+    use std::os::windows::process::CommandExt;
+    // DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
+    command.creation_flags(0x0000_0008 | 0x0000_0200 | 0x0800_0000);
+}
+
+#[cfg(not(any(unix, windows)))]
 fn detach(_command: &mut Command) {}
+
+/// True if the process `pid` runs.
+#[cfg(unix)]
+fn alive(pid: &str) -> bool {
+    Command::new("kill").arg("-0").arg(pid).stderr(Stdio::null()).status().is_ok_and(|s| s.success())
+}
+
+/// True if the process `pid` runs.
+#[cfg(not(unix))]
+fn alive(pid: &str) -> bool {
+    Command::new("tasklist")
+        .args(["/FI", &format!("PID eq {pid}"), "/NH", "/FO", "CSV"])
+        .output()
+        .is_ok_and(|out| String::from_utf8_lossy(&out.stdout).contains(&format!("\"{pid}\"")))
+}
+
+/// Asks the daemon to stop: SIGTERM.
+#[cfg(unix)]
+fn request_stop(_home: &Path, pid: &str) -> anyhow::Result<()> {
+    let status = Command::new("kill").arg("-TERM").arg(pid).status()?;
+    if !status.success() {
+        bail!("kill -TERM {pid} failed");
+    }
+    println!("sent SIGTERM to zcied (pid {pid})");
+    Ok(())
+}
+
+/// Asks the daemon to stop: the stop file (ADR-027).
+#[cfg(not(unix))]
+fn request_stop(home: &Path, pid: &str) -> anyhow::Result<()> {
+    std::fs::write(home.join("run/zcied.stop"), pid)?;
+    println!("asked zcied to stop (pid {pid})");
+    Ok(())
+}
 
 /// True if the process of `<home>/run/zcied.pid` runs.
 pub fn is_running(home: &Path) -> bool {
     let Ok(pid) = std::fs::read_to_string(home.join("run/zcied.pid")) else { return false };
     let pid = pid.trim();
-    !pid.is_empty() && pid.chars().all(|c| c.is_ascii_digit()) && Command::new("kill").arg("-0").arg(pid).stderr(Stdio::null()).status().is_ok_and(|s| s.success())
+    !pid.is_empty() && pid.chars().all(|c| c.is_ascii_digit()) && alive(pid)
 }
 
 /// Waits until the daemon answers its health check and prints where its log is.
@@ -158,11 +199,7 @@ pub fn stop(home: &Path) -> anyhow::Result<()> {
     if pid.is_empty() || !pid.chars().all(|c| c.is_ascii_digit()) {
         bail!("invalid pid file {}", pid_path.display());
     }
-    let status = Command::new("kill").arg("-TERM").arg(pid).status()?;
-    if !status.success() {
-        bail!("kill -TERM {pid} failed");
-    }
-    println!("sent SIGTERM to zcied (pid {pid})");
+    request_stop(home, pid)?;
     wait_for_exit(pid)
 }
 
@@ -170,8 +207,7 @@ pub fn stop(home: &Path) -> anyhow::Result<()> {
 fn wait_for_exit(pid: &str) -> anyhow::Result<()> {
     let started = Instant::now();
     while started.elapsed() < STOP_WAIT {
-        let alive = Command::new("kill").arg("-0").arg(pid).stderr(Stdio::null()).status()?.success();
-        if !alive {
+        if !alive(pid) {
             println!("zcied stopped");
             return Ok(());
         }

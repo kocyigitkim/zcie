@@ -55,7 +55,7 @@ fn main() -> anyhow::Result<()> {
     let max_payload = config.ingest.max_payload_bytes;
     let result = runtime.block_on(async move {
         signals::spawn_reload_on_hangup(Arc::clone(&engine), paths.clients_toml());
-        zcie_gateway_http::serve(engine, addr, max_payload, signals::stop_signal()).await
+        zcie_gateway_http::serve(engine, addr, max_payload, signals::stop_signal(paths.run_dir())).await
     });
     tracing::info!("HTTP gateway stopped; shutting down");
     running.shutdown();

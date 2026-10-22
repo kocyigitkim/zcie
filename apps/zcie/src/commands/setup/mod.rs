@@ -47,7 +47,7 @@ pub struct SetupArgs {
     /// Index workers: 1, 2 or 4.
     #[arg(long)]
     pub workers: Option<String>,
-    /// Start the daemon at login (macOS): true or false.
+    /// Start the daemon at login (macOS launchd, Windows Startup folder): true or false.
     #[arg(long)]
     pub autostart: Option<String>,
     /// Daemon port.
@@ -171,7 +171,7 @@ fn ask_all(p: &mut Prompter, s: &mut Settings, given: &[&str]) -> anyhow::Result
     if !skip("opencode") && (live::on_path("opencode") || s.opencode) {
         s.opencode = p.yes_no(t(&l, "Connect OpenCode too?", "OpenCode da bağlansın mı?"), true);
     }
-    let cursor_home = std::env::var("HOME").map(|h| Path::new(&h).join(".cursor").is_dir()).unwrap_or(false);
+    let cursor_home = crate::commands::user_home().map(|h| Path::new(&h).join(".cursor").is_dir()).unwrap_or(false);
     if !skip("cursor") && (live::on_path("cursor") || cursor_home || s.cursor) {
         s.cursor = p.yes_no(t(&l, "Connect Cursor too?", "Cursor da bağlansın mı?"), true);
     }
@@ -231,7 +231,7 @@ fn ask_engine(p: &mut Prompter, s: &mut Settings, given: &[&str]) {
         let answer = p.choose(t(&l, "Background indexing:", "Arka plan indeksleme:"), &options, &s.workers.to_string());
         let _ = s.set("workers", &answer);
     }
-    if !given.contains(&"autostart") && cfg!(target_os = "macos") {
+    if !given.contains(&"autostart") && cfg!(any(target_os = "macos", windows)) {
         s.autostart = p.yes_no(t(&l, "Start the daemon at login?", "Daemon oturum açılışında otomatik başlasın mı?"), s.autostart);
     }
     if !given.contains(&"port") {
@@ -255,7 +255,7 @@ fn print_summary(s: &Settings, home: &Path) {
 
 /// Imports the earlier Claude Code conversations if the user wants it.
 fn import_step(args: &SetupArgs, p: &mut Prompter, home: &Path, s: &Settings, first: bool) -> anyhow::Result<()> {
-    let transcripts = std::env::var("HOME").map(|h| Path::new(&h).join(".claude/projects").is_dir()).unwrap_or(false);
+    let transcripts = crate::commands::user_home().map(|h| Path::new(&h).join(".claude/projects").is_dir()).unwrap_or(false);
     let l = s.language.as_str();
     let question = t(l, "Import your earlier Claude Code conversations into the memory? (the code of a folder is indexed only after: zcie project add <folder>)", "Eski Claude Code sohbetleriniz hafızaya aktarılsın mı? (bir klasörün kodu yalnızca zcie project add <klasör> ile indekslenir)");
     let wanted = decide(args.import.as_deref(), args.yes, || transcripts && p.yes_no(question, first))?;

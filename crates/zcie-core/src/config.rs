@@ -266,9 +266,9 @@ fn apply_env(table: &mut toml::Table, name: &str, value: &str) {
     }
 }
 
-/// Expands a leading `~` with the `HOME` environment variable.
+/// Expands a leading `~` with the `HOME` (or Windows `USERPROFILE`) environment variable.
 pub fn expand_home(path: &str) -> PathBuf {
-    match (path.strip_prefix("~/"), std::env::var("HOME")) {
+    match (path.strip_prefix("~/"), std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE"))) {
         (Some(rest), Ok(home)) => PathBuf::from(home).join(rest),
         _ => PathBuf::from(path),
     }

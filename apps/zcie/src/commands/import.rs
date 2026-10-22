@@ -87,7 +87,7 @@ fn store(client: &Client, project: &str, message: &UserMessage) -> anyhow::Resul
 pub fn run(args: ImportArgs, client: &Client) -> anyhow::Result<()> {
     let dir = match args.dir.clone() {
         Some(dir) => dir,
-        None => PathBuf::from(std::env::var("HOME").context("HOME is not set")?).join(".claude/projects"),
+        None => PathBuf::from(crate::commands::user_home().context("HOME is not set")?).join(".claude/projects"),
     };
     let mut per_project: BTreeMap<String, usize> = BTreeMap::new();
     let mut skipped = 0usize;
@@ -124,7 +124,7 @@ fn project_of(client: &Client, cwd: &str, args: &ImportArgs, known: &mut BTreeMa
     if let Some((_, id)) = find_project_id(folder) {
         return Ok(Some(id));
     }
-    let home = std::env::var("HOME").unwrap_or_default();
+    let home = crate::commands::user_home().unwrap_or_default();
     let temporary = ["/tmp", "/private/tmp", "/var/folders", "/private/var"].iter().any(|t| cwd.starts_with(t));
     if args.existing_only || temporary || !folder.is_dir() || cwd == home || cwd == "/" {
         return Ok(None);

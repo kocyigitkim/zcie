@@ -1,7 +1,7 @@
 {
   "name": "zcie",
   "version": "0.1.0",
-  "description": "ZeroContext Intelligence Engine: local project memory and code index for Claude Code and OpenCode. New sessions remember earlier sessions.",
+  "description": "ZeroContext Intelligence Engine: local project memory and code index for Claude Code, Cursor, Codex CLI and OpenCode. New sessions remember earlier sessions.",
   "license": "UNLICENSED",
   "bin": {
     "zcie": "bin/zcie.js"
@@ -17,6 +17,8 @@
   "keywords": [
     "claude-code",
     "opencode",
+    "cursor",
+    "codex",
     "mcp",
     "memory",
     "code-index"

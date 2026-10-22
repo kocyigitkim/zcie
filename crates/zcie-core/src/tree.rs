@@ -1,7 +1,6 @@
 //! Runtime tree, permissions and manifest (`docs/04-folder-structure.md` section 6).
 
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -83,11 +82,19 @@ pub fn create_tree(paths: &InstancePaths) -> Result<()> {
 }
 
 /// Sets the Unix mode of a path.
+#[cfg(unix)]
 pub fn set_mode(path: &Path, mode: u32) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
     let current = fs::metadata(path)?.permissions().mode() & 0o777;
     if current != mode {
         fs::set_permissions(path, fs::Permissions::from_mode(mode))?;
     }
+    Ok(())
+}
+
+/// Windows has no Unix mode; the user profile folder is private by default.
+#[cfg(not(unix))]
+pub fn set_mode(_path: &Path, _mode: u32) -> Result<()> {
     Ok(())
 }
 

@@ -1,6 +1,5 @@
 //! The setup, status and remove procedures.
 
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
@@ -29,7 +28,7 @@ fn target(scope: Scope, dir: Option<PathBuf>, home: &Path) -> anyhow::Result<Tar
             project.join(".claude").join("zcie-setup.json"),
         ),
         Scope::User => {
-            let user_home = std::env::var("HOME").context("HOME is not set")?;
+            let user_home = crate::commands::user_home().context("HOME is not set")?;
             (PathBuf::from(user_home).join(".claude").join("settings.json"), home.join("claude-user-setup.json"))
         }
     };
@@ -82,7 +81,7 @@ fn apply(config: &mut serde_json::Value, manifest: &mut Manifest, args: &SetupAr
     settings::remove(config, &Manifest { hooks_added: manifest.hooks_added.clone(), ..Manifest::default() });
     manifest.hooks_added.clear();
     for spec in hooks::profile(!args.no_capture, !args.no_inject, !args.no_guards, !args.no_lean, !args.no_check) {
-        let command = hook_dir.join(spec.script).display().to_string();
+        let command = hooks::command(&hook_dir.join(spec.script), "");
         settings::add_hook(config, (spec.event, spec.matcher), &command, spec.timeout, manifest);
     }
 }
@@ -141,7 +140,11 @@ pub(crate) fn ensure_key(home: &Path, key_file: &Path, workspace: &str) -> anyho
     });
     clients.save(&clients_path)?;
     std::fs::write(key_file, format!("{key}\n"))?;
-    std::fs::set_permissions(key_file, std::fs::Permissions::from_mode(0o600))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(key_file, std::fs::Permissions::from_mode(0o600))?;
+    }
     reload_daemon(home);
     Ok(())
 }
@@ -161,7 +164,15 @@ fn grant_workspace(home: &Path, key: &str, workspace: &str) -> anyhow::Result<()
     Ok(())
 }
 
+/// Sends SIGHUP to a running daemon so it loads the new key. On Windows the daemon sees the
+/// change of `clients.toml` by itself (ADR-027); this waits for that.
+#[cfg(not(unix))]
+fn reload_daemon(_home: &Path) {
+    std::thread::sleep(std::time::Duration::from_millis(1200));
+}
+
 /// Sends SIGHUP to a running daemon so it loads the new key.
+#[cfg(unix)]
 fn reload_daemon(home: &Path) {
     let Ok(pid) = std::fs::read_to_string(home.join("run").join("zcied.pid")) else { return };
     let pid = pid.trim();

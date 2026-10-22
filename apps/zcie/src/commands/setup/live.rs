@@ -23,7 +23,21 @@ pub const OUTER_VARIABLES: [&str; 5] = ["ZCIE_WORKSPACE", "ZCIE_URL", "ZCIE_API_
 
 /// True if a program is on the PATH.
 pub fn on_path(name: &str) -> bool {
-    std::env::var_os("PATH").is_some_and(|path| std::env::split_paths(&path).any(|dir| dir.join(name).is_file()))
+    // Windows programs end with .exe; npm installs .cmd files.
+    let names: Vec<String> = if cfg!(windows) { vec![format!("{name}.exe"), format!("{name}.cmd"), name.into()] } else { vec![name.into()] };
+    std::env::var_os("PATH").is_some_and(|path| std::env::split_paths(&path).any(|dir| names.iter().any(|n| dir.join(n).is_file())))
+}
+
+/// A command that starts an installed program. On Windows it runs through `cmd /C`, because npm
+/// installs `.cmd` files that `Command::new` does not start.
+pub fn program(name: &str) -> Command {
+    if cfg!(windows) {
+        let mut command = Command::new("cmd");
+        command.args(["/C", name]);
+        command
+    } else {
+        Command::new(name)
+    }
 }
 
 /// True if the `claude` command is installed.
@@ -35,7 +49,7 @@ pub fn claude_available() -> bool {
 fn spawn_claude(dir: &Path, prompt: &str) -> Result<std::process::Child, String> {
     let mut last = String::new();
     for _ in 0..SPAWN_TRIES {
-        let mut command = Command::new("claude");
+        let mut command = program("claude");
         for name in OUTER_VARIABLES {
             command.env_remove(name);
         }

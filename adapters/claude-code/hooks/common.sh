@@ -12,6 +12,11 @@ fi
 # Read the hook input JSON from stdin once.
 zcie_read_input() {
     ZCIE_INPUT="$(cat)"
+    # Windows clients send C:\x\y; Git Bash and the daemon both take C:/x/y (ADR-027).
+    case "$ZCIE_INPUT" in
+        *'"cwd":"'[A-Za-z]':\\'*|*'"cwd": "'[A-Za-z]':\\'*)
+            ZCIE_INPUT="$(printf '%s' "$ZCIE_INPUT" | jq -c '.cwd |= gsub("\\\\"; "/") | if (.tool_input.file_path | type) == "string" then .tool_input.file_path |= gsub("\\\\"; "/") else . end' 2>/dev/null || printf '%s' "$ZCIE_INPUT")" ;;
+    esac
     export ZCIE_INPUT
     # Cursor also runs Claude Code hooks; only its own dispatcher may run them there (ADR-025).
     [ "${ZCIE_APP:-}" = "cursor" ] || [ -z "$(zcie_field '.cursor_version')" ] || exit 0
@@ -26,6 +31,12 @@ zcie_field() {
 zcie_require_tools() {
     command -v jq >/dev/null 2>&1 || exit 0
     command -v curl >/dev/null 2>&1 || exit 0
+}
+
+# Prints the parent folder, or nothing at the top (/ or a Windows drive such as C:).
+zcie_parent() {
+    zcie_up="$(dirname "$1")"
+    [ "$zcie_up" = "$1" ] || [ "$zcie_up" = "." ] || printf '%s' "$zcie_up"
 }
 
 # Finds the project ID: ZCIE_WORKSPACE (override), or .claude/zcie_id in the hook cwd or a parent
@@ -44,7 +55,7 @@ zcie_project_id() {
             return
         fi
         [ -e "$dir/.git" ] && return
-        dir="$(dirname "$dir")"
+        dir="$(zcie_parent "$dir")"
     done
 }
 
@@ -60,7 +71,7 @@ zcie_project_root() {
             return
         fi
         [ -e "$zcie_root_dir/.git" ] && break
-        zcie_root_dir="$(dirname "$zcie_root_dir")"
+        zcie_root_dir="$(zcie_parent "$zcie_root_dir")"
     done
     zcie_root_git="$(git -C "$zcie_root_start" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
     case "$zcie_root_git" in
@@ -98,6 +109,7 @@ zcie_ensure_project() {
     [ -n "$cwd" ] || return 0
     root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$cwd")"
     [ "$root" != "$HOME" ] && [ "$root" != "/" ] || return 0
+    [ "$root" != "$(printf '%s' "${USERPROFILE:-}" | tr '\\' '/')" ] || return 0
     zcie_is_temp_root "$root" && return 0
     body="$(jq -n --arg n "$(basename "$root")" --arg r "$root" '{name: $n, root: $r}' 2>/dev/null)" || return 0
     id="$(curl --max-time 3 --silent -H "Content-Type: application/json" \
@@ -144,7 +156,9 @@ zcie_next_turn() {
 
 # SHA-256 of the hook input, first 16 hex characters.
 zcie_input_sha() {
-    printf '%s' "$ZCIE_INPUT" | shasum -a 256 2>/dev/null | cut -c1-16
+    zcie_sha="shasum -a 256"
+    command -v shasum >/dev/null 2>&1 || zcie_sha="sha256sum"
+    printf '%s' "$ZCIE_INPUT" | $zcie_sha 2>/dev/null | cut -c1-16
 }
 
 # Send one event. Arguments: type session turn hook payload

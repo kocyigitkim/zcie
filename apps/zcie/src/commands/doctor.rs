@@ -2,7 +2,6 @@
 //! the index queues, the key, the installed hooks, the project of the current folder and the
 //! autostart agent. `--fix` repairs what it can (hooks, daemon start).
 
-use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
 use anyhow::bail;
@@ -92,10 +91,22 @@ fn daemon_checks(client: &Client) -> Vec<Check> {
     out
 }
 
+#[cfg(unix)]
+fn readable_by_others(meta: &std::fs::Metadata) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    meta.permissions().mode() & 0o077 != 0
+}
+
+// The user profile folder of Windows is private by default.
+#[cfg(not(unix))]
+fn readable_by_others(_meta: &std::fs::Metadata) -> bool {
+    false
+}
+
 fn key_check(home: &Path) -> Check {
     let path = std::env::var("ZCIE_API_KEY_FILE").map(Into::into).unwrap_or_else(|_| home.join("config/claude-code.key"));
     match std::fs::metadata(&path) {
-        Ok(meta) if meta.permissions().mode() & 0o077 != 0 => {
+        Ok(meta) if readable_by_others(&meta) => {
             check(Level::Warn, format!("key file {} is readable by others. Fix: chmod 600 {}", path.display(), path.display()))
         }
         Ok(_) => check(Level::Ok, format!("key file {}", path.display())),
@@ -121,9 +132,10 @@ fn project_check(client: &Client, cwd: &Path) -> Check {
 }
 
 fn settings_check(home: &Path, cwd: &Path) -> Check {
-    let hook_dir = home.join("hooks").display().to_string();
+    // Hook commands use `/` on Windows too (claude::hooks::command).
+    let hook_dir = home.join("hooks").display().to_string().replace('\\', "/");
     let candidates = [cwd.join(".claude/settings.local.json"), cwd.join(".claude/settings.json")];
-    let user = std::env::var("HOME").map(|h| Path::new(&h).join(".claude/settings.json")).ok();
+    let user = crate::commands::user_home().map(|h| Path::new(&h).join(".claude/settings.json")).ok();
     let found = candidates.iter().chain(user.iter()).find(|p| std::fs::read_to_string(p).is_ok_and(|t| t.contains(&hook_dir)));
     match found {
         Some(path) => check(Level::Ok, format!("Claude Code hooks are set in {}", path.display())),
