@@ -4,7 +4,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 /// Each script: file name and content.
-const SCRIPTS: [(&str, &str); 16] = [
+const SCRIPTS: [(&str, &str); 17] = [
     ("common.sh", include_str!("../../../../../adapters/claude-code/hooks/common.sh")),
     ("session-start.sh", include_str!("../../../../../adapters/claude-code/hooks/session-start.sh")),
     ("session-context.sh", include_str!("../../../../../adapters/claude-code/hooks/session-context.sh")),
@@ -21,6 +21,7 @@ const SCRIPTS: [(&str, &str); 16] = [
     ("verify-gate.sh", include_str!("../../../../../adapters/claude-code/hooks/verify-gate.sh")),
     ("subagent-context.sh", include_str!("../../../../../adapters/claude-code/hooks/subagent-context.sh")),
     ("cursor-hook.sh", include_str!("../../../../../adapters/cursor/cursor-hook.sh")),
+    ("codex-hook.sh", include_str!("../../../../../adapters/codex/codex-hook.sh")),
 ];
 
 /// Writes all scripts to `<home>/hooks/` with mode 0755. Returns the folder.

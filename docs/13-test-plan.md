@@ -428,6 +428,15 @@ Files: `apps/zcie/src/commands/cursor.rs` (TS-25-01, 02), `tests/integration/con
 | TS-25-07 | `zcie cursor setup --dir P` twice; `zcie cursor remove --dir P`; `zcie setup -y --cursor true`; `zcie verify`; `zcie uninstall`, with a test `HOME`. | Project setup writes 5 hook events and `mcpServers.zcie`, with no duplicates and a foreign server kept; remove deletes only ZCIE entries; global setup writes `HOME/.cursor`; verify prints "Cursor hooks installed"; uninstall removes the entries. |
 | TS-25-08 | `sessionStart`, then `sessionEnd` twice with a `transcript_path` of one turn (timestamp + user_query, a thought, a final answer); a second session with `beforeSubmitPrompt`, then `sessionEnd` with another transcript. | The daemon holds the user.message and the assistant.message (the last text, not the thought) with app `cursor`; the second transcript is not stored. |
 
+### TS-26 — Codex CLI adapter (ADR-026)
+
+Files: `apps/zcie/src/commands/codex.rs` (TS-26-01), `tests/integration/context_hooks.rs` (TS-26-02).
+
+| ID | Input | Expected result |
+|---|---|---|
+| TS-26-01 | `remove_hooks` and `add_hooks` twice on a config with a foreign `Stop` group; then `remove_hooks`. | Each ZCIE script has one group; the foreign group stays; after the removal only the foreign group is left. |
+| TS-26-02 | `codex-hook.sh inject-context.sh` on a `UserPromptSubmit` input with a project fact prompt, then a generic prompt, on a test server. | The project prompt gives `hookSpecificOutput` with `hookEventName` `UserPromptSubmit` and `additionalContext` that contains "ZCIE context"; the generic prompt gives no output. |
+
 ## 6. Token regression
 
 Put these tests in `tests/token-regression/`.

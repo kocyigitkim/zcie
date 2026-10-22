@@ -80,6 +80,12 @@ pub enum Command {
         #[command(subcommand)]
         action: commands::cursor::CursorAction,
     },
+    /// Connect Codex CLI to ZCIE (hooks and MCP server).
+    Codex {
+        /// The Codex action.
+        #[command(subcommand)]
+        action: commands::codex::CodexAction,
+    },
     /// Install or check the local embedding model of the vector search.
     Vector {
         /// The vector action.
@@ -114,7 +120,7 @@ pub enum Command {
     },
     /// Show the token savings of ZCIE for each project (from the Claude Code transcripts).
     Usage(commands::usage::UsageArgs),
-    /// Remove the Claude Code, OpenCode and Cursor entries and the autostart agent, and stop the daemon.
+    /// Remove the Claude Code, OpenCode, Cursor and Codex entries and the autostart agent, and stop the daemon.
     Uninstall {
         /// Also delete all memory and indexes (the data folder).
         #[arg(long)]

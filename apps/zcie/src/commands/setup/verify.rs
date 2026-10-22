@@ -66,6 +66,11 @@ pub fn run(home: &Path, s: &Settings, live: bool) -> anyhow::Result<()> {
         let installed = std::fs::read_to_string(&hooks).is_ok_and(|text| text.contains("cursor-hook.sh"));
         checks.push(if installed { pass("Cursor hooks installed") } else { fail("Cursor hooks are missing (fix: zcie setup)") });
     }
+    if s.codex {
+        let hooks = PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".codex/hooks.json");
+        let installed = std::fs::read_to_string(&hooks).is_ok_and(|text| text.contains("codex-hook.sh"));
+        checks.push(if installed { pass("Codex hooks installed") } else { fail("Codex hooks are missing (fix: zcie setup)") });
+    }
     if live {
         println!("{}", t(l, "  live test with Claude Code (two new sessions, about a minute)…", "  Claude Code ile canlı test (iki yeni oturum, yaklaşık bir dakika)…"));
         checks.push(super::live::run(home, s));

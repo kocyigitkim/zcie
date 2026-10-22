@@ -1388,7 +1388,16 @@ Do the tasks in release order: P5.1 (D-066, D-067), P5.2 (D-068, D-069, D-072), 
 
 ---
 
-## 7. After the last development task---
+### D-088 — Codex CLI adapter (ADR-026)
+
+- [x] Done
+- **Goal:** Codex CLI sends its prompts and answers to ZCIE, gets the capsule, and it can call `zcie_query`.
+- **Files:** `adapters/codex/codex-hook.sh` (new), `apps/zcie/src/commands/codex.rs` (new), `apps/zcie/src/{main.rs,commands/mod.rs}`, `apps/zcie/src/commands/claude/hooks.rs`, `apps/zcie/src/commands/setup/{settings,mod,apply,verify}.rs`.
+- **Done when:**
+  - `cargo build --workspace` and `cargo clippy --workspace -- -D warnings` pass.
+  - TS-26-01 and TS-26-02 pass.
+
+---
 
 ## 7. After the last development task
 

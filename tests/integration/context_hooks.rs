@@ -292,6 +292,28 @@ fn ts_25_03_cursor_prompt_gets_the_capsule_as_additional_context() {
 }
 
 #[test]
+fn ts_26_02_codex_prompt_gets_the_capsule_as_hook_specific_output() {
+    let dir = tempfile::tempdir().unwrap();
+    let hooks = dir.path().join("hooks");
+    std::fs::create_dir_all(&hooks).unwrap();
+    for entry in std::fs::read_dir(workspace_root().join("adapters/claude-code/hooks")).unwrap() {
+        let path = entry.unwrap().path();
+        std::fs::copy(&path, hooks.join(path.file_name().unwrap())).unwrap();
+    }
+    std::fs::copy(workspace_root().join("adapters/codex/codex-hook.sh"), hooks.join("codex-hook.sh")).unwrap();
+    // Codex runs `codex-hook.sh inject-context.sh`; run_hook passes no arguments.
+    std::fs::write(hooks.join("codex-inject.sh"), "exec sh \"$(dirname \"$0\")/codex-hook.sh\" inject-context.sh\n").unwrap();
+    let url = fixed_server(capsule_response(), json!({"items": []}));
+    let prompt = |text: &str| json!({"hook_event_name": "UserPromptSubmit", "session_id": "x1", "turn_id": "t1", "cwd": "/tmp", "prompt": text});
+    let out = run_hook(hooks.join("codex-inject.sh"), &prompt("tutarlar ve rate limit ne olacak"), &url, dir.path(), &[]);
+    let value: Value = serde_json::from_str(&out).unwrap_or_else(|e| panic!("not JSON ({e}): {out}"));
+    assert_eq!(value["hookSpecificOutput"]["hookEventName"], "UserPromptSubmit", "{out}");
+    assert!(value["hookSpecificOutput"]["additionalContext"].as_str().unwrap_or_default().contains("ZCIE context"), "{out}");
+    let generic = run_hook(hooks.join("codex-inject.sh"), &prompt("Hello, how are you today?"), &url, dir.path(), &[]);
+    assert_eq!(generic, "", "a generic prompt gets no context");
+}
+
+#[test]
 fn ts_25_04_claude_hook_stays_silent_in_cursor_and_works_outside_it() {
     let url = fixed_server(capsule_response(), json!({"items": []}));
     let script = workspace_root().join("adapters/claude-code/hooks/inject-context.sh");
