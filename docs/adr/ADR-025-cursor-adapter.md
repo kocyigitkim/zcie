@@ -26,3 +26,4 @@ ZCIE SHALL connect Cursor with one dispatcher hook and the `zcie-mcp` server.
 - Cursor has no tool profile, no guards, no verification gate, no subagent context and no usage report.
 - A global MCP entry depends on Cursor expanding `${workspaceFolder}` in `env`. This is not yet confirmed.
 - Cursor CLI (cursor-agent 2026.10.19) fires no beforeSubmitPrompt or afterAgentResponse. At sessionEnd the dispatcher replays transcript_path (user_query text as the prompt, the last assistant text of each turn as the answer) when the session has no turn file. A GUI session or a second sessionEnd replays nothing.
+- Cursor.app 3.25.6 does not always fire sessionStart (the chat that opens with the window gets none). The first beforeSubmitPrompt of a chat SHALL carry the opening (rule line, session start, repo map) when the chat has no turn file and no sessionStart marker file. A chat with sessionStart gets the opening once.

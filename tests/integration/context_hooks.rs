@@ -286,6 +286,7 @@ fn ts_25_03_cursor_prompt_gets_the_capsule_as_additional_context() {
     let value: Value = serde_json::from_str(&out).unwrap_or_else(|e| panic!("not JSON ({e}): {out}"));
     assert_eq!(value["continue"], json!(true), "{out}");
     assert!(value["additional_context"].as_str().unwrap_or_default().contains("ZCIE context"), "{out}");
+    assert!(value["additional_context"].as_str().unwrap_or_default().starts_with("ZCIE: this project"), "the first prompt of a chat carries the opening: {out}");
     let generic = run_hook(hooks.join("cursor-hook.sh"), &prompt("Hello, how are you today?"), &url, dir.path(), &[]);
     assert_eq!(serde_json::from_str::<Value>(&generic).unwrap(), json!({"continue": true}), "a generic prompt gets no context: {generic}");
 }
