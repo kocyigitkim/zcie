@@ -120,9 +120,11 @@ mod tests {
             remove_hooks(&mut config, "/z/hooks/codex-hook.sh");
             add_hooks(&mut config, "/z/hooks/codex-hook.sh");
         }
-        let all = config.to_string();
+        // On Windows the command is `"<bash>" "<wrapper>" <script>`, so match the end of each command.
+        let commands: Vec<String> = config["hooks"].as_object().unwrap().values().flat_map(|groups| groups.as_array().unwrap().clone()).flat_map(|g| g["hooks"].as_array().unwrap().clone()).filter_map(|h| h["command"].as_str().map(str::to_string)).collect();
         for (_, script) in HOOKS {
-            assert_eq!(all.matches(&format!("codex-hook.sh {script}")).count(), 1, "{script}: {config}");
+            let ours = commands.iter().filter(|c| c.contains("codex-hook.sh") && c.ends_with(&format!(" {script}"))).count();
+            assert_eq!(ours, 1, "{script}: {config}");
         }
         assert!(config["hooks"]["Stop"].as_array().unwrap().contains(&foreign), "{config}");
         remove_hooks(&mut config, "/z/hooks/codex-hook.sh");

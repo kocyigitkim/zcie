@@ -15,8 +15,6 @@ jobs:
     defaults:
       run:
         shell: bash  # Git Bash on Windows: the hooks and the package script need it
-    env:
-      LIBCLANG_PATH: ${{ matrix.os == 'windows-latest' && 'C:\Program Files\LLVM\bin' || '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -27,6 +25,8 @@ jobs:
           node-version: 20
       - name: Tools
         run: |
+          # RocksDB needs libclang; an empty LIBCLANG_PATH breaks clang-sys on macOS, so set it on Windows only.
+          [ "$RUNNER_OS" = Windows ] && echo 'LIBCLANG_PATH=C:\Program Files\LLVM\bin' >> "$GITHUB_ENV"
           command -v jq || { [ "$RUNNER_OS" = macOS ] && brew install jq; }
           jq --version && curl --version | head -1
       - name: Clippy

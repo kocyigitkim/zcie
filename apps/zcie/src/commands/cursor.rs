@@ -213,7 +213,7 @@ mod tests {
     #[test]
     fn ts_25_02_mcp_entry_starts_zcie_mcp_with_three_env_keys() {
         let entry = mcp_entry(Path::new("/k/claude-code.key"), "http://127.0.0.1:1", "${workspaceFolder}").unwrap();
-        assert!(entry["command"].as_str().unwrap().ends_with("zcie-mcp"), "{entry}");
+        assert!(entry["command"].as_str().unwrap().trim_end_matches(".exe").ends_with("zcie-mcp"), "{entry}");
         assert_eq!(entry["args"], json!([]));
         let env = entry["env"].as_object().unwrap();
         assert_eq!(env.len(), 3, "{entry}");
