@@ -56,6 +56,9 @@ pub struct SetupArgs {
     /// OpenCode integration for all projects: true or false.
     #[arg(long)]
     pub opencode: Option<String>,
+    /// Cursor integration for all projects: true or false.
+    #[arg(long)]
+    pub cursor: Option<String>,
     /// Store the answers of the assistant too: true or false.
     #[arg(long)]
     pub answers: Option<String>,
@@ -89,6 +92,7 @@ impl SetupArgs {
             ("autostart", &self.autostart),
             ("port", &self.port),
             ("opencode", &self.opencode),
+            ("cursor", &self.cursor),
             ("answers", &self.answers),
             ("check", &self.check),
             ("cross_project", &self.cross_project),
@@ -162,6 +166,10 @@ fn ask_all(p: &mut Prompter, s: &mut Settings, given: &[&str]) -> anyhow::Result
     ask_engine(p, s, given);
     if !skip("opencode") && (live::on_path("opencode") || s.opencode) {
         s.opencode = p.yes_no(t(&l, "Connect OpenCode too?", "OpenCode da bağlansın mı?"), true);
+    }
+    let cursor_home = std::env::var("HOME").map(|h| Path::new(&h).join(".cursor").is_dir()).unwrap_or(false);
+    if !skip("cursor") && (live::on_path("cursor") || cursor_home || s.cursor) {
+        s.cursor = p.yes_no(t(&l, "Connect Cursor too?", "Cursor da bağlansın mı?"), true);
     }
     Ok(())
 }

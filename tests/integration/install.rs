@@ -283,3 +283,144 @@ fn ts_18_10_stop_hook_stores_the_answer_of_the_assistant() {
     let found = text(&install.zcie(&["query", "invoice_lines indeksi neden eklendi"], ""));
     assert!(found.contains("customer_id"), "a new query finds the earlier answer: {found}");
 }
+
+/// Runs the Cursor dispatcher of an install with a Cursor hook input. Returns stdout.
+fn cursor_hook(install: &Install, input: serde_json::Value) -> String {
+    let mut hook = Command::new("sh")
+        .arg(install.home().join("hooks/cursor-hook.sh"))
+        .env("ZCIE_URL", format!("http://127.0.0.1:{}", install.port))
+        .env("ZCIE_API_KEY_FILE", install.home().join("config/claude-code.key"))
+        .env_remove("ZCIE_WORKSPACE")
+        .env_remove("ZCIE_APP")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    hook.stdin.take().unwrap().write_all(input.to_string().as_bytes()).unwrap();
+    String::from_utf8(hook.wait_with_output().unwrap().stdout).unwrap()
+}
+
+#[test]
+fn ts_25_05_cursor_hooks_store_edits_and_answers_with_app_cursor() {
+    let install = Install::new();
+    assert!(install.setup_yes().status.success());
+    let repo = install.root.join("cursor-app");
+    std::fs::create_dir_all(repo.join("src")).unwrap();
+    zcie_tests::git(&repo, &["init", "-q"]);
+    let folder = repo.display().to_string();
+    let input = |event: &str, extra: serde_json::Value| {
+        let mut value = serde_json::json!({"hook_event_name": event, "conversation_id": "c-cursor", "cursor_version": "3.25.6", "workspace_roots": [folder]});
+        value.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        value
+    };
+    let start = cursor_hook(&install, input("sessionStart", serde_json::json!({})));
+    assert!(start.contains("ZCIE: this project"), "the new chat gets the rule: {start}");
+    let id = install.read(&repo.join(".claude/zcie_id")).trim().to_string();
+    assert!(!id.is_empty(), "the project ID file is written");
+    std::fs::write(repo.join("src/rate.rs"), "pub const LIMIT: u32 = 600;\n").unwrap();
+    let file = repo.join("src/rate.rs").display().to_string();
+    cursor_hook(&install, input("afterFileEdit", serde_json::json!({"file_path": file})));
+    cursor_hook(&install, input("afterAgentResponse", serde_json::json!({"text": "Karar: rate limit dakikada 600 istek olacak."})));
+    std::thread::sleep(std::time::Duration::from_secs(2));
+    let key = install.read(&install.home().join("config/claude-code.key")).trim().to_string();
+    let client = zcie_sdk::Client::new(&format!("http://127.0.0.1:{}", install.port), &key, &id);
+    let found = serde_json::to_value(client.query("rate limit dakikada kaç istek", 1000).unwrap()).unwrap();
+    let refs: Vec<String> = found["results"].as_array().unwrap().iter().filter_map(|r| r["ref"].as_str().map(str::to_string)).collect();
+    let expanded = serde_json::to_value(client.expand(&refs, zcie_types::ExpandLevel::Evidence, Some(4000)).unwrap()).unwrap().to_string();
+    assert!(expanded.contains("assistant.message") && expanded.contains("cursor"), "the answer is stored with app cursor: {expanded}");
+    // The file.changed event starts a file job; the activity log names its target.
+    let log = install.read(&install.home().join("stats/activity.jsonl"));
+    assert!(log.lines().any(|l| l.contains("\"job\"") && l.contains("rate.rs")), "the edit is indexed: {log}");
+}
+
+#[test]
+fn ts_25_08_cursor_session_end_replays_the_transcript_once() {
+    let install = Install::new();
+    assert!(install.setup_yes().status.success());
+    let repo = install.root.join("cursor-cli");
+    std::fs::create_dir_all(&repo).unwrap();
+    zcie_tests::git(&repo, &["init", "-q"]);
+    let folder = repo.display().to_string();
+    // The turn file is in the shared TMPDIR: the session ids must be new in each run.
+    let unique = install.root.file_name().unwrap().to_string_lossy().to_string();
+    let (cli, gui) = (format!("c-cli-{unique}"), format!("c-gui-{unique}"));
+    let input = |event: &str, session: &str, extra: serde_json::Value| {
+        let mut value = serde_json::json!({"hook_event_name": event, "conversation_id": session, "cursor_version": "2026.10.19", "workspace_roots": [folder]});
+        value.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        value
+    };
+    cursor_hook(&install, input("sessionStart", &cli, serde_json::json!({})));
+    let id = install.read(&repo.join(".claude/zcie_id")).trim().to_string();
+    assert!(!id.is_empty(), "the project ID file is written");
+    let line = |role: &str, text: &str| serde_json::json!({"role": role, "message": {"content": [{"type": "text", "text": text}]}}).to_string();
+    let first = install.root.join("cli.jsonl");
+    std::fs::write(&first, [
+        line("user", "<timestamp>Thursday, Oct 22, 2026, 9:03 PM (UTC+3)</timestamp>\n<user_query>\nÖnbellek süresi neden 90 saniye?\n</user_query>"),
+        line("assistant", "**Analyzing** düşünce"),
+        line("assistant", "Karar: önbellek süresi 90 saniye, çünkü fiyat verisi sık değişiyor."),
+        serde_json::json!({"type": "turn_ended", "status": "success"}).to_string(),
+    ].join("\n")).unwrap();
+    let end = |session: &str, path: &Path| input("sessionEnd", session, serde_json::json!({"reason": "completed", "transcript_path": path}));
+    cursor_hook(&install, end(&cli, &first));
+    cursor_hook(&install, end(&cli, &first));
+    // A GUI session: beforeSubmitPrompt ran, so sessionEnd must not replay the transcript.
+    cursor_hook(&install, input("beforeSubmitPrompt", &gui, serde_json::json!({"prompt": "Merhaba"})));
+    let second = install.root.join("gui.jsonl");
+    std::fs::write(&second, [line("user", "<user_query>\nzebrafjord deposu nerede?\n</user_query>"), line("assistant", "zebrafjord deposu yok.")].join("\n")).unwrap();
+    cursor_hook(&install, end(&gui, &second));
+    std::thread::sleep(std::time::Duration::from_secs(2));
+    let key = install.read(&install.home().join("config/claude-code.key")).trim().to_string();
+    let client = zcie_sdk::Client::new(&format!("http://127.0.0.1:{}", install.port), &key, &id);
+    let find = |q: &str| {
+        let found = serde_json::to_value(client.query(q, 2000).unwrap()).unwrap();
+        let refs: Vec<String> = found["results"].as_array().unwrap().iter().filter_map(|r| r["ref"].as_str().map(str::to_string)).collect();
+        if refs.is_empty() { return found.to_string(); }
+        // A memory expands to its text only; the raw events (kind and app) come from its provenance refs.
+        let memories = serde_json::to_value(client.expand(&refs, zcie_types::ExpandLevel::Evidence, Some(4000)).unwrap()).unwrap();
+        let events: Vec<String> = memories["items"].as_array().unwrap().iter().flat_map(|i| i["provenance"].as_array().cloned().unwrap_or_default()).filter_map(|p| p.as_str().map(str::to_string)).collect();
+        let audit = serde_json::to_value(client.expand(&events, zcie_types::ExpandLevel::Evidence, Some(4000)).unwrap()).unwrap();
+        format!("{memories}{audit}")
+    };
+    let replayed = find("önbellek süresi 90 saniye");
+    assert!(replayed.contains("user.message") && replayed.contains("assistant.message") && replayed.contains("cursor"), "the prompt and the answer are replayed with app cursor: {replayed}");
+    assert!(!replayed.contains("**Analyzing"), "only the last text of the turn is the answer: {replayed}");
+    let skipped = find("zebrafjord deposu");
+    assert!(!skipped.contains("zebrafjord"), "a session with beforeSubmitPrompt replays nothing: {skipped}");
+}
+
+#[test]
+fn ts_25_07_cursor_setup_and_remove_touch_only_zcie_entries() {
+    let install = Install::new();
+    let folder = install.root.join("cursor-project");
+    std::fs::create_dir_all(folder.join(".cursor")).unwrap();
+    std::fs::write(folder.join(".cursor/mcp.json"), r#"{"mcpServers":{"other":{"command":"other-tool"}}}"#).unwrap();
+    let dir = folder.display().to_string();
+    let setup = install.zcie(&["cursor", "setup", "--dir", &dir], "");
+    assert!(setup.status.success(), "{}", text(&setup));
+    let events = ["sessionStart", "beforeSubmitPrompt", "afterFileEdit", "afterAgentResponse", "sessionEnd"];
+    let count = |file: &str| {
+        let value: serde_json::Value = serde_json::from_str(&install.read(&folder.join(file))).unwrap();
+        events.map(|e| value["hooks"][e].as_array().map_or(0, |list| list.iter().filter(|h| h["command"].as_str().is_some_and(|c| c.ends_with("cursor-hook.sh"))).count()))
+    };
+    assert_eq!(count(".cursor/hooks.json"), [1; 5], "one entry per event");
+    assert!(install.read(&folder.join(".cursor/mcp.json")).contains("\"zcie\"") && install.read(&folder.join(".cursor/mcp.json")).contains("\"other\""));
+    assert!(install.zcie(&["cursor", "setup", "--dir", &dir], "").status.success());
+    assert_eq!(count(".cursor/hooks.json"), [1; 5], "a second setup adds nothing");
+    let removed = install.zcie(&["cursor", "remove", "--dir", &dir], "");
+    assert!(removed.status.success(), "{}", text(&removed));
+    assert_eq!(count(".cursor/hooks.json"), [0; 5], "remove takes the ZCIE hooks out");
+    let mcp = install.read(&folder.join(".cursor/mcp.json"));
+    assert!(!mcp.contains("\"zcie\"") && mcp.contains("\"other\""), "only the ZCIE server is removed: {mcp}");
+    // Global: `zcie setup --cursor true` writes ~/.cursor, `verify` reports it, `uninstall` removes it.
+    let port = install.port.to_string();
+    let project = install.project().display().to_string();
+    let args = ["setup", "--yes", "--language", "en", "--claude", "project", "--claude-dir", &project, "--cursor", "true", "--port", &port, "--vector", "off", "--autostart", "false", "--import", "false"];
+    let output = install.zcie(&args, "");
+    assert!(output.status.success(), "{}", text(&output));
+    let hooks = install.read(&install.root.join("user/.cursor/hooks.json"));
+    assert!(hooks.contains("cursor-hook.sh"), "{hooks}");
+    let verify = text(&install.zcie(&["verify"], ""));
+    assert!(verify.contains("Cursor hooks installed"), "{verify}");
+    assert!(install.zcie(&["uninstall", "--purge"], "").status.success());
+    assert!(!install.read(&install.root.join("user/.cursor/hooks.json")).contains("cursor-hook.sh"), "uninstall removes the Cursor hook");
+}

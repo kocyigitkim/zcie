@@ -413,6 +413,21 @@ Files: `apps/zcie/src/commands/usage/tests.rs` (TS-22-01 to 03, 07 to 10), `test
 | TS-24-01 | A project with a large ZCIE session (6 subagents), a small one, 3 sessions with no ZCIE, and an automated session (`usage/tests.rs`). | The large session is an outlier (cost per turn ≥ 3 × median), listed with subagents 6 and share 93 %, and left out; saving against the median 300; confidence low; automated 1 session. |
 | TS-24-02 | The subagent hook on an Agent call with a task that names a symbol of an indexed fixture; on a Read call; with the daemon stopped (`tests/integration/context_hooks.rs`). | The task gets the ZCIE capsule appended (`updatedInput.prompt`); other tools and a stopped daemon give no output. |
 
+### TS-25 — Cursor adapter (ADR-025)
+
+Files: `apps/zcie/src/commands/cursor.rs` (TS-25-01, 02), `tests/integration/context_hooks.rs` (TS-25-03, 04), `tests/integration/install.rs` (TS-25-05, 07, 08), `tests/integration/gateways.rs` (TS-25-06).
+
+| ID | Test | Expected result |
+|----|------|-----------------|
+| TS-25-01 | `add_hooks` on a config with a foreign `beforeSubmitPrompt` entry and `version` 1; then `add_hooks` again; then `remove_hooks`. | Each of the 5 events has one ZCIE entry after two runs; the foreign entry stays; after the removal only the foreign entry is left. |
+| TS-25-02 | `mcp_entry` for a project folder. | The command ends with `zcie-mcp`; `args` is empty; `env` has `ZCIE_URL`, `ZCIE_API_KEY_FILE` and `ZCIE_PROJECT_DIR`. |
+| TS-25-03 | `cursor-hook.sh` on a `beforeSubmitPrompt` input with `cursor_version` and a project fact prompt, then a generic prompt, on a test daemon with a fixture project. | The project prompt gives JSON with `continue` true and `additional_context` that contains "ZCIE context"; the generic prompt gives `{"continue":true}` only. |
+| TS-25-04 | `inject-context.sh` with `cursor_version` and no `ZCIE_APP`; then the same input without `cursor_version`. | The first run prints nothing; the second run prints the capsule. |
+| TS-25-05 | `sessionStart` in a Git repository with no `.claude/zcie_id`; then `afterFileEdit` and `afterAgentResponse` in the same session. | The id file is written; `additional_context` starts with "ZCIE: this project"; the daemon holds the file change and the assistant message with app `cursor`. |
+| TS-25-06 | `zcie-mcp` started in `/` with `ZCIE_PROJECT_DIR` set to a project with `.claude/zcie_id`, then `zcie_query`. | The query returns only the data of that project. |
+| TS-25-07 | `zcie cursor setup --dir P` twice; `zcie cursor remove --dir P`; `zcie setup -y --cursor true`; `zcie verify`; `zcie uninstall`, with a test `HOME`. | Project setup writes 5 hook events and `mcpServers.zcie`, with no duplicates and a foreign server kept; remove deletes only ZCIE entries; global setup writes `HOME/.cursor`; verify prints "Cursor hooks installed"; uninstall removes the entries. |
+| TS-25-08 | `sessionStart`, then `sessionEnd` twice with a `transcript_path` of one turn (timestamp + user_query, a thought, a final answer); a second session with `beforeSubmitPrompt`, then `sessionEnd` with another transcript. | The daemon holds the user.message and the assistant.message (the last text, not the thought) with app `cursor`; the second transcript is not stored. |
+
 ## 6. Token regression
 
 Put these tests in `tests/token-regression/`.

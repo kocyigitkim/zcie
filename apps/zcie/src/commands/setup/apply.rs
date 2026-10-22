@@ -1,5 +1,5 @@
 //! Makes the system match the settings: `engine.toml`, the vector model, the daemon and its
-//! autostart agent, the Claude Code settings and the OpenCode plugin (ADR-014).
+//! autostart agent, the Claude Code settings, the OpenCode plugin and the Cursor hooks (ADR-014, ADR-025).
 
 use std::path::{Path, PathBuf};
 
@@ -9,7 +9,7 @@ use zcie_sdk::Client;
 use super::settings::Settings;
 use super::t;
 use crate::commands::claude::{self, Profile, Scope, SetupArgs};
-use crate::commands::{daemon, opencode, service, vector};
+use crate::commands::{cursor, daemon, opencode, service, vector};
 
 /// Applies `new`. `old` is the previous state (`None` for a first setup).
 pub fn apply(home: &Path, old: Option<&Settings>, new: &Settings) -> anyhow::Result<()> {
@@ -26,6 +26,7 @@ pub fn apply(home: &Path, old: Option<&Settings>, new: &Settings) -> anyhow::Res
     run_daemon(home, new, engine_changed)?;
     claude_code(home, old, new)?;
     open_code(home, old, new)?;
+    cursor_app(home, old, new)?;
     super::settings::save(home, new)?;
     Ok(())
 }
@@ -167,7 +168,18 @@ fn open_code(home: &Path, old: Option<&Settings>, new: &Settings) -> anyhow::Res
     Ok(())
 }
 
-/// Removes what the settings installed: the Claude Code and OpenCode entries and the autostart
+/// Installs or removes the global Cursor hook and MCP server.
+fn cursor_app(home: &Path, old: Option<&Settings>, new: &Settings) -> anyhow::Result<()> {
+    if new.cursor {
+        return cursor::run(cursor::CursorAction::Setup { dir: None, global: true, name: None }, home, &new.url());
+    }
+    if old.is_some_and(|o| o.cursor) {
+        return cursor::run(cursor::CursorAction::Remove { dir: None, global: true }, home, &new.url());
+    }
+    Ok(())
+}
+
+/// Removes what the settings installed: the Claude Code, OpenCode and Cursor entries and the autostart
 /// agent. The daemon stops. The data stays unless the caller removes `home`.
 pub fn remove_all(home: &Path, settings: &Settings) -> anyhow::Result<()> {
     if settings.claude != "none" {
@@ -176,6 +188,9 @@ pub fn remove_all(home: &Path, settings: &Settings) -> anyhow::Result<()> {
     }
     if settings.opencode {
         opencode::run(opencode::OpenCodeAction::Remove { dir: None, global: true }, home, &settings.url())?;
+    }
+    if settings.cursor {
+        cursor::run(cursor::CursorAction::Remove { dir: None, global: true }, home, &settings.url())?;
     }
     if cfg!(target_os = "macos") {
         service::uninstall(home)?;

@@ -74,6 +74,12 @@ pub enum Command {
         #[command(subcommand)]
         action: commands::opencode::OpenCodeAction,
     },
+    /// Connect Cursor to ZCIE (hooks and MCP server).
+    Cursor {
+        /// The Cursor action.
+        #[command(subcommand)]
+        action: commands::cursor::CursorAction,
+    },
     /// Install or check the local embedding model of the vector search.
     Vector {
         /// The vector action.
@@ -93,7 +99,7 @@ pub enum Command {
         action: commands::project::ProjectAction,
     },
     /// Install and configure ZCIE on this computer (wizard). Run it again to change the settings.
-    Setup(commands::setup::SetupArgs),
+    Setup(Box<commands::setup::SetupArgs>),
     /// Show or change the settings of `zcie setup`.
     Config {
         /// The config action.
@@ -108,7 +114,7 @@ pub enum Command {
     },
     /// Show the token savings of ZCIE for each project (from the Claude Code transcripts).
     Usage(commands::usage::UsageArgs),
-    /// Remove the Claude Code and OpenCode entries and the autostart agent, and stop the daemon.
+    /// Remove the Claude Code, OpenCode and Cursor entries and the autostart agent, and stop the daemon.
     Uninstall {
         /// Also delete all memory and indexes (the data folder).
         #[arg(long)]

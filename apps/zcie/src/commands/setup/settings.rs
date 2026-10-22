@@ -39,6 +39,8 @@ pub struct Settings {
     pub budget: u32,
     /// OpenCode integration for all projects.
     pub opencode: bool,
+    /// Cursor integration for all projects.
+    pub cursor: bool,
     /// Store the answers of the assistant too (`capture.assistant_messages`, ADR-016).
     pub answers: bool,
     /// Run the check of the project when a turn changed code (`auto`) or not (`off`) (ADR-020).
@@ -60,6 +62,7 @@ impl Default for Settings {
             profile: "auto".into(),
             budget: DEFAULT_BUDGET,
             opencode: false,
+            cursor: false,
             answers: true,
             check: "auto".into(),
             cross_project: true,
@@ -68,7 +71,7 @@ impl Default for Settings {
 }
 
 /// The keys of `zcie config set`, with the allowed values.
-pub const KEYS: [(&str, &str); 13] = [
+pub const KEYS: [(&str, &str); 14] = [
     ("language", "tr | en"),
     ("port", "1024..65535"),
     ("vector", "multilingual | english | off"),
@@ -79,6 +82,7 @@ pub const KEYS: [(&str, &str); 13] = [
     ("profile", "auto | balanced | lean | off"),
     ("budget", "200..4000"),
     ("opencode", "true | false"),
+    ("cursor", "true | false"),
     ("answers", "true | false"),
     ("check", "auto | off"),
     ("cross_project", "true | false"),
@@ -141,6 +145,7 @@ impl Settings {
             "profile" => self.profile = one_of(value, &["auto", "balanced", "lean", "off"])?,
             "budget" => self.budget = value.parse().ok().filter(|b| (BUDGET_RANGE.0..=BUDGET_RANGE.1).contains(b)).with_context(|| format!("{value} is not from 200 to 4000"))?,
             "opencode" => self.opencode = parse_bool(value)?,
+            "cursor" => self.cursor = parse_bool(value)?,
             "answers" => self.answers = parse_bool(value)?,
             "check" => self.check = one_of(value, &["auto", "off"])?,
             "cross_project" => self.cross_project = parse_bool(value)?,
@@ -162,6 +167,7 @@ impl Settings {
             "profile" => self.profile.clone(),
             "budget" => self.budget.to_string(),
             "opencode" => self.opencode.to_string(),
+            "cursor" => self.cursor.to_string(),
             "answers" => self.answers.to_string(),
             "check" => self.check.clone(),
             "cross_project" => self.cross_project.to_string(),

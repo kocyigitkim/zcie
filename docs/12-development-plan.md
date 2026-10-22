@@ -1368,7 +1368,27 @@ Do the tasks in release order: P5.1 (D-066, D-067), P5.2 (D-068, D-069, D-072), 
 
 - **Result:** `apps/zcie-bar` (SwiftUI `MenuBarExtra`; menu with KPI tiles, saving gauge, 14-day chart, comparison bars; report window with an overview page and a page for each project: tokens per turn, tool calls, token parts, tokens of each day, gate ring; Swift Charts, macOS 14), `build.sh`, `test.sh`. Opening the app shows the report; the login item starts it with `--background`. The app runs `~/.zcie/bin/zcie usage --json --no-disk`, so macOS asks for no protected folder. TS-22-06; live run 2026-10-19.
 
+### D-087 — Cursor adapter (ADR-025)
+
+- [x] Done
+- **Goal:** Cursor sends its prompts, file edits and answers to ZCIE, and it can call `zcie_query`.
+- **Files:** `adapters/claude-code/hooks/common.sh`, `gateways/mcp/src/main.rs`, `gateways/mcp/README.md`, `adapters/cursor/{cursor-hook.sh,README.md}` (new), `apps/zcie/src/commands/cursor.rs` (new), `apps/zcie/src/{main.rs,commands/mod.rs}`, `apps/zcie/src/commands/claude/hooks.rs`, `apps/zcie/src/commands/setup/{settings,mod,apply,verify}.rs`.
+- **Steps:**
+  1. Guard the Claude Code hooks inside Cursor and tag the app in `common.sh`.
+  2. Add `ZCIE_PROJECT_DIR` to `zcie-mcp`.
+  3. Add the dispatcher `cursor-hook.sh` and install it with the Claude Code hooks.
+  4. Add `zcie cursor setup` and `zcie cursor remove`.
+  5. Add Cursor to `zcie setup`, `zcie verify` and `zcie uninstall`.
+- **Done when:**
+  - `cargo build --workspace` and `cargo clippy --workspace -- -D warnings` pass.
+  - TS-25-01 to TS-25-08 pass.
+
+- **Result:** Coded (steps 1 to 5). Build and clippy pass. Tests TS-25 are pending the test phase.
+- **Note:** Cursor CLI sends no prompt or answer hooks; sessionEnd replays the transcript once (ADR-025 consequence, TS-25-08).
+
 ---
+
+## 7. After the last development task---
 
 ## 7. After the last development task
 

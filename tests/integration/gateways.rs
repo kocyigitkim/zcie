@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use serde_json::{Value, json};
 use zcie_tests::engine::capture_request;
 use zcie_tests::process::binary;
-use zcie_tests::{DaemonProcess, fixture_repo, free_port, mcp_session, workspace_root};
+use zcie_tests::{DaemonProcess, fixture_repo, free_port, git, mcp_session, workspace_root};
 
 const WORKSPACE: &str = "atheron";
 
@@ -240,4 +240,74 @@ fn context_hook_injects_each_ref_once_per_session_until_compaction() {
     assert!(inject(&daemon, dir.path(), "inject-context.sh", prompt).contains("attach_to_bone"), "a compaction resets the list");
     let notification = json!({"session_id": "s-note", "cwd": "/tmp", "prompt": "<task-notification> where is attach_to_bone defined </task-notification>"});
     assert_eq!(inject(&daemon, dir.path(), "inject-context.sh", notification), "", "a task notification gets no capsule");
+}
+
+/// Runs `zcie-mcp` from `/` (not from the project) with `ZCIE_PROJECT_DIR` set, as Cursor does
+/// with the global MCP entry (ADR-025). Returns the responses.
+fn mcp_from_root(daemon: &DaemonProcess, project_dir: &std::path::Path, calls: &[Value]) -> Vec<Value> {
+    use std::io::{BufRead, BufReader};
+    let mut child = Command::new(binary("zcie-mcp"))
+        .current_dir("/")
+        .env_remove("ZCIE_WORKSPACE")
+        .env("ZCIE_PROJECT_DIR", project_dir)
+        .env("ZCIE_URL", daemon.url())
+        .env("ZCIE_API_KEY", daemon.admin_key())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+    // The reply to each request is the next line with an `id`.
+    let mut reply = || loop {
+        let value: Value = serde_json::from_str(&lines.next().unwrap().unwrap()).unwrap();
+        if value.get("id").is_some() {
+            return value;
+        }
+    };
+    writeln!(stdin, "{}", json!({"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1"}}})).unwrap();
+    let mut responses = vec![reply()];
+    writeln!(stdin, "{}", json!({"jsonrpc":"2.0","method":"notifications/initialized"})).unwrap();
+    for call in calls {
+        writeln!(stdin, "{call}").unwrap();
+        responses.push(reply());
+    }
+    drop(stdin);
+    let _ = child.kill();
+    let _ = child.wait();
+    responses
+}
+
+#[test]
+fn ts_25_06_cursor_mcp_uses_the_project_dir_from_any_folder() {
+    let dir = tempfile::tempdir().unwrap();
+    let daemon = DaemonProcess::spawn(&dir.path().join("home"), free_port());
+    let mut folders = Vec::new();
+    for (name, text) in [("ledger", "Remember this decision: we use Postgres 16 for the ledger database."), ("atlas", "Remember this decision: we use Redis 7 for the atlas cache database.")] {
+        let root = dir.path().join(name);
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        git(&root, &["init", "-q", "-b", "main"]);
+        let output = Command::new(binary("zcie"))
+            .current_dir(&root)
+            .env_remove("ZCIE_WORKSPACE")
+            .args(["--url", &daemon.url(), "--key", &daemon.admin_key(), "--home"])
+            .arg(&daemon.home)
+            .args(["project", "init"])
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        let mut request = capture_request("user.message", &format!("s-{name}"), Some("1"), text);
+        request.workspace = name.into();
+        daemon.client(name).capture(request).unwrap();
+        folders.push(root.canonicalize().unwrap());
+    }
+    daemon.wait_idle();
+    let call = json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"zcie_query","arguments":{"question":"which database do we use"}}});
+    let ledger = mcp_from_root(&daemon, &folders[0], std::slice::from_ref(&call));
+    let text = ledger[1]["result"]["content"][0]["text"].as_str().unwrap_or_default().to_string();
+    assert!(text.contains("Postgres") && !text.contains("Redis"), "{text}");
+    let atlas = mcp_from_root(&daemon, &folders[1], std::slice::from_ref(&call));
+    let text = atlas[1]["result"]["content"][0]["text"].as_str().unwrap_or_default().to_string();
+    assert!(text.contains("Redis") && !text.contains("Postgres"), "{text}");
 }

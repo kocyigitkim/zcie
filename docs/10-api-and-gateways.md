@@ -151,6 +151,7 @@ URL-encode a ref in a path (`:` becomes `%3A`).
 - Binary in `gateways/mcp`. Transport: stdio. Use the `rmcp` crate.
 - Configuration from environment: `ZCIE_URL` (default `http://127.0.0.1:47831`), `ZCIE_API_KEY` or `ZCIE_API_KEY_FILE`, `ZCIE_WORKSPACE` (optional override).
 - Project: `ZCIE_WORKSPACE` if set. Else the first `.claude/zcie_id` in the current folder or a parent folder (ADR-009). Else `default`.
+- `ZCIE_PROJECT_DIR` (optional, ADR-025): the folder where the search for `.claude/zcie_id` starts. Default: the current folder.
 - Expose exactly two tools. Do not expose capture, link or forget tools.
 - Streamable HTTP transport is OPTIONAL. It is not in milestone 1.
 
@@ -272,6 +273,10 @@ The context hook stores the refs that it injected in `${TMPDIR}/zcie-<session_id
 ### 7.1.2 OpenCode adapter (`adapters/opencode`, ADR-012)
 
 The plugin `zcie.js` does the work of the Claude Code hooks with the same rules: `chat.message` (capture and capsule as a synthetic text part), `tool.execute.after` (file changes), `session.compacted` (reset of the injected refs). `zcie opencode setup` installs it and the `zcie-mcp` server entry.
+
+### 7.1.3 Cursor adapter (`adapters/cursor`, ADR-025)
+
+The hook `cursor-hook.sh` handles all Cursor events. It converts the Cursor input to the Claude Code input and runs the Claude Code hook scripts. It prints the Cursor JSON. `sessionStart` returns the repository map and the rule for `zcie_query` as `additional_context`. `beforeSubmitPrompt` returns the capsule. `afterFileEdit` and `afterAgentResponse` capture the changes and the answers. `zcie cursor setup` installs the hooks and the `zcie-mcp` server entry in `mcpServers`.
 
 ### 7.2 Git adapter (`adapters/git`)
 

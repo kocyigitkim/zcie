@@ -13,6 +13,8 @@ fi
 zcie_read_input() {
     ZCIE_INPUT="$(cat)"
     export ZCIE_INPUT
+    # Cursor also runs Claude Code hooks; only its own dispatcher may run them there (ADR-025).
+    [ "${ZCIE_APP:-}" = "cursor" ] || [ -z "$(zcie_field '.cursor_version')" ] || exit 0
 }
 
 # Get one field from the hook input with a jq filter.
@@ -149,7 +151,7 @@ zcie_input_sha() {
 zcie_send() {
     event_type="$1"; session="$2"; turn="$3"; hook="$4"; payload="$5"
     [ -n "$(zcie_project_id)" ] || return 0
-    key="claude-code:${session}:${turn}:${hook}:$(zcie_input_sha)"
+    key="${ZCIE_APP:-claude-code}:${session}:${turn}:${hook}:$(zcie_input_sha)"
     body="$(jq -n \
         --arg schema "zcie.event.v1" \
         --arg key "$key" \
@@ -158,8 +160,9 @@ zcie_send() {
         --arg turn "$turn" \
         --arg type "$event_type" \
         --arg payload "$payload" \
+        --arg app "${ZCIE_APP:-claude-code}" \
         '{schema: $schema, idempotency_key: $key, workspace: $workspace,
-          source: {app: "claude-code", session_id: $session, turn_id: $turn},
+          source: {app: $app, session_id: $session, turn_id: $turn},
           type: $type, payload: $payload}' 2>/dev/null)" || return 0
     curl --max-time 2 --silent --output /dev/null \
         -H "Content-Type: application/json" \

@@ -2,6 +2,7 @@
 
 pub mod capture;
 pub mod claude;
+pub mod cursor;
 pub mod daemon;
 pub mod data;
 pub mod doctor;
@@ -46,6 +47,7 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Project { action } => project::run(action, &client),
         Command::Claude { action } => claude::run(action, &home, &cli.url),
         Command::Opencode { action } => opencode::run(action, &home, &cli.url),
+        Command::Cursor { action } => cursor::run(action, &home, &cli.url),
         Command::Vector { action } => vector::run(action, &home),
         Command::Import { source: ImportSource::Claude(args) } => import::run(args, &client),
         Command::Setup(args) => setup::run(&args, &home),

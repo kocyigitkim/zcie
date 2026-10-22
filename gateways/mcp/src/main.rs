@@ -1,6 +1,6 @@
 //! `zcie-mcp`: MCP stdio server with two tools. It calls the daemon over HTTP.
 //!
-//! Configuration: `ZCIE_URL`, `ZCIE_API_KEY` (or `ZCIE_API_KEY_FILE`), `ZCIE_WORKSPACE`. Stdout is for the protocol; logs go to stderr.
+//! Configuration: `ZCIE_URL`, `ZCIE_API_KEY` (or `ZCIE_API_KEY_FILE`), `ZCIE_WORKSPACE`, `ZCIE_PROJECT_DIR` (folder to find the project from; default cwd). Stdout is for the protocol; logs go to stderr.
 
 mod tools;
 
@@ -64,9 +64,14 @@ impl ServerHandler for ZcieServer {
     }
 }
 
-/// Finds `.claude/zcie_id` in the current folder or a parent folder (ADR-009).
+/// Finds `.claude/zcie_id` in the folder of `ZCIE_PROJECT_DIR` (if it is a folder) or the current
+/// folder, or in a parent folder (ADR-009, ADR-025).
 fn project_of_cwd() -> Option<String> {
-    let start = std::env::current_dir().ok()?;
+    let start = std::env::var("ZCIE_PROJECT_DIR")
+        .ok()
+        .map(std::path::PathBuf::from)
+        .filter(|p| p.is_dir())
+        .or_else(|| std::env::current_dir().ok())?;
     start.ancestors().find_map(|folder| {
         let text = std::fs::read_to_string(folder.join(".claude").join("zcie_id")).ok()?;
         let id = text.lines().next()?.trim().to_string();

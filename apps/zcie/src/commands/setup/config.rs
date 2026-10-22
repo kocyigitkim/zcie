@@ -72,7 +72,7 @@ fn set(home: &Path, current: &settings::Settings, pairs: &[String], no_verify: b
     super::verify::run(home, &new, false)
 }
 
-/// Removes the Claude Code and OpenCode entries and the autostart agent, and stops the daemon.
+/// Removes the Claude Code, OpenCode and Cursor entries and the autostart agent, and stops the daemon.
 /// `purge` also deletes the data folder.
 pub fn uninstall(home: &Path, purge: bool) -> anyhow::Result<()> {
     if let Some(current) = settings::load(home)? {

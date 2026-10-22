@@ -240,3 +240,73 @@ fn ts_24_02_a_subagent_task_gets_the_zcie_capsule() {
     assert_eq!(subagent_hook(&daemon.url(), &daemon.admin_key(), dir.path(), &read), "");
     assert_eq!(subagent_hook("http://127.0.0.1:9", "k", dir.path(), &agent), "", "no daemon: the call runs unchanged");
 }
+
+/// A fixed answer with one good match (the capsule is injected for it).
+fn capsule_response() -> Value {
+    let results = vec![json!({"ref": "mem:rate", "kind": "memory", "title": "Rate limit 600", "status": "active", "score": 0.9, "snippet": "Rate limit dakikada 600 istek."})];
+    json!({"class": "search", "answer_kind": "evidence", "answer": null, "results": results, "freshness": "current", "match_coverage": 0.9})
+}
+
+/// Runs `script` (a hook of `adapters/claude-code/hooks`, or the Cursor dispatcher) with a hook
+/// input and extra environment. Returns stdout.
+fn run_hook(script: std::path::PathBuf, input: &Value, url: &str, tmp: &std::path::Path, env: &[(&str, &str)]) -> String {
+    let mut command = Command::new("sh");
+    command
+        .arg(script)
+        .env("ZCIE_URL", url)
+        .env("ZCIE_API_KEY", "key")
+        .env("ZCIE_WORKSPACE", "atheron")
+        .env("TMPDIR", tmp)
+        .env_remove("ZCIE_APP")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+    for (name, value) in env {
+        command.env(name, value);
+    }
+    let mut child = command.spawn().unwrap();
+    child.stdin.take().unwrap().write_all(input.to_string().as_bytes()).unwrap();
+    String::from_utf8(child.wait_with_output().unwrap().stdout).unwrap()
+}
+
+#[test]
+fn ts_25_03_cursor_prompt_gets_the_capsule_as_additional_context() {
+    let dir = tempfile::tempdir().unwrap();
+    // The dispatcher runs the sibling Claude Code scripts, so they are copied next to it.
+    let hooks = dir.path().join("hooks");
+    std::fs::create_dir_all(&hooks).unwrap();
+    for entry in std::fs::read_dir(workspace_root().join("adapters/claude-code/hooks")).unwrap() {
+        let path = entry.unwrap().path();
+        std::fs::copy(&path, hooks.join(path.file_name().unwrap())).unwrap();
+    }
+    std::fs::copy(workspace_root().join("adapters/cursor/cursor-hook.sh"), hooks.join("cursor-hook.sh")).unwrap();
+    let url = fixed_server(capsule_response(), json!({"items": []}));
+    let prompt = |text: &str| json!({"hook_event_name": "beforeSubmitPrompt", "conversation_id": "c1", "cursor_version": "3.25.6", "workspace_roots": ["/tmp"], "prompt": text});
+    let out = run_hook(hooks.join("cursor-hook.sh"), &prompt("tutarlar ve rate limit ne olacak"), &url, dir.path(), &[]);
+    let value: Value = serde_json::from_str(&out).unwrap_or_else(|e| panic!("not JSON ({e}): {out}"));
+    assert_eq!(value["continue"], json!(true), "{out}");
+    assert!(value["additional_context"].as_str().unwrap_or_default().contains("ZCIE context"), "{out}");
+    let generic = run_hook(hooks.join("cursor-hook.sh"), &prompt("Hello, how are you today?"), &url, dir.path(), &[]);
+    assert_eq!(serde_json::from_str::<Value>(&generic).unwrap(), json!({"continue": true}), "a generic prompt gets no context: {generic}");
+}
+
+#[test]
+fn ts_25_04_claude_hook_stays_silent_in_cursor_and_works_outside_it() {
+    let url = fixed_server(capsule_response(), json!({"items": []}));
+    let script = workspace_root().join("adapters/claude-code/hooks/inject-context.sh");
+    let input = |cursor: bool| {
+        let mut value = json!({"session_id": "s-guard", "cwd": "/tmp", "prompt": "tutarlar ve rate limit ne olacak"});
+        if cursor {
+            value["cursor_version"] = json!("3.25.6");
+        }
+        value
+    };
+    // Each run has its own TMPDIR: the first capsule of a session is not sent again in that session.
+    let run = |cursor: bool, env: &[(&str, &str)]| {
+        let tmp = tempfile::tempdir().unwrap();
+        run_hook(script.clone(), &input(cursor), &url, tmp.path(), env)
+    };
+    assert_eq!(run(true, &[]), "", "Cursor also runs Claude hooks: they do nothing");
+    assert!(run(false, &[]).contains("ZCIE context"), "a Claude Code session gets the capsule");
+    assert!(run(true, &[("ZCIE_APP", "cursor")]).contains("ZCIE context"), "the Cursor dispatcher gets it");
+}
