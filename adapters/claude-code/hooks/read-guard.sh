@@ -29,8 +29,8 @@ rel="${file#"$cwd"/}"
 project="$(zcie_project_id)"
 body="$(jq -n --arg w "$project" --arg q "$rel" \
     '{workspace: $w, question: $q, mode: "search", token_budget: 2000, max_results: 40}' 2>/dev/null)"
-outline="$(curl --max-time 2 --silent -H "Content-Type: application/json" \
-    -H "Authorization: Bearer ${ZCIE_API_KEY:-}" -X POST --data "$body" "${ZCIE_URL}/v1/query" 2>/dev/null \
+outline="$(printf '%s' "$body" | curl --max-time 2 --silent -H "Content-Type: application/json" \
+    -H "Authorization: Bearer ${ZCIE_API_KEY:-}" -X POST --data-binary @- "${ZCIE_URL}/v1/query" 2>/dev/null \
     | jq -r --arg rel "$rel" '[.results[]? | select(.kind == "symbol" and .path == $rel and .range != null)]
         | sort_by(.range[0]) | .[:40][] | "  " + .title + " L" + (.range[0]|tostring) + "-" + (.range[1]|tostring)' 2>/dev/null)"
 

@@ -112,8 +112,8 @@ zcie_ensure_project() {
     [ "$root" != "$(printf '%s' "${USERPROFILE:-}" | tr '\\' '/')" ] || return 0
     zcie_is_temp_root "$root" && return 0
     body="$(jq -n --arg n "$(basename "$root")" --arg r "$root" '{name: $n, root: $r}' 2>/dev/null)" || return 0
-    id="$(curl --max-time 3 --silent -H "Content-Type: application/json" \
-        -H "Authorization: Bearer ${ZCIE_API_KEY:-}" -X POST --data "$body" "${ZCIE_URL}/v1/projects" 2>/dev/null \
+    id="$(printf '%s' "$body" | curl --max-time 3 --silent -H "Content-Type: application/json" \
+        -H "Authorization: Bearer ${ZCIE_API_KEY:-}" -X POST --data-binary @- "${ZCIE_URL}/v1/projects" 2>/dev/null \
         | jq -r '.project_id // empty' 2>/dev/null)"
     [ -n "$id" ] || return 0
     mkdir -p "$root/.claude" 2>/dev/null && printf '%s\n' "$id" > "$root/.claude/zcie_id"
@@ -178,10 +178,10 @@ zcie_send() {
         '{schema: $schema, idempotency_key: $key, workspace: $workspace,
           source: {app: $app, session_id: $session, turn_id: $turn},
           type: $type, payload: $payload}' 2>/dev/null)" || return 0
-    curl --max-time 2 --silent --output /dev/null \
+    printf '%s' "$body" | curl --max-time 2 --silent --output /dev/null \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer ${ZCIE_API_KEY:-}" \
-        -X POST --data "$body" "${ZCIE_URL}/v1/events" >/dev/null 2>&1 || true
+        -X POST --data-binary @- "${ZCIE_URL}/v1/events" >/dev/null 2>&1 || true
 }
 
 # Appends one statistics line to the hook statistics of ADR-022: ZCIE_STATS_FILE, else

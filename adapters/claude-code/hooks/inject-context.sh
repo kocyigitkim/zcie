@@ -23,10 +23,10 @@ project="$(zcie_project_id)"
 body="$(jq -n --arg w "$project" --arg q "$(printf '%s' "$prompt" | cut -c1-1900)" --arg cp "${ZCIE_CROSS_PROJECT:-true}" \
     --argjson b "$ZCIE_INJECT_BUDGET" '{workspace: $w, question: $q, token_budget: $b, cross_project: ($cp != "false")}' 2>/dev/null)" || exit 0
 # A slow answer (a busy daemon) is waited for up to 4 s; a lost capsule is said, not silent.
-response="$(curl --max-time 4 --silent \
+response="$(printf '%s' "$body" | curl --max-time 4 --silent \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer ${ZCIE_API_KEY:-}" \
-    -X POST --data "$body" "${ZCIE_URL}/v1/query" 2>/dev/null)"
+    -X POST --data-binary @- "${ZCIE_URL}/v1/query" 2>/dev/null)"
 code=$?
 # 28 = timeout. A stopped daemon (connection refused) is reported once by the SessionStart hook.
 if [ "$code" -eq 28 ]; then
@@ -49,8 +49,8 @@ if [ "$(printf '%s' "$response" | jq -r '.capsule' 2>/dev/null)" = "false" ]; th
     [ -s "$work_file" ] || exit 0
     refs="$(cut -f1 "$work_file" | jq -R . 2>/dev/null | jq -s -c . 2>/dev/null)" || exit 0
     expand_body="$(jq -n --arg w "$project" --argjson r "$refs" '{workspace: $w, refs: $r, level: "source", token_budget: 1200}' 2>/dev/null)" || exit 0
-    items="$(curl --max-time 2 --silent -H "Content-Type: application/json" -H "Authorization: Bearer ${ZCIE_API_KEY:-}" \
-        -X POST --data "$expand_body" "${ZCIE_URL}/v1/expand" 2>/dev/null | jq -c '.items[]? | select(.content != null and .range != null)' 2>/dev/null)"
+    items="$(printf '%s' "$expand_body" | curl --max-time 2 --silent -H "Content-Type: application/json" -H "Authorization: Bearer ${ZCIE_API_KEY:-}" \
+        -X POST --data-binary @- "${ZCIE_URL}/v1/expand" 2>/dev/null | jq -c '.items[]? | select(.content != null and .range != null)' 2>/dev/null)"
     changed=""
     while IFS= read -r item; do
         [ -n "$item" ] || continue
@@ -156,8 +156,8 @@ else
     top="$(printf '%s' "$named" | jq -r '.ref // empty' 2>/dev/null)"
     if [ -n "$top" ]; then
         expand_body="$(jq -n --arg w "$project" --arg r "$top" '{workspace: $w, refs: [$r], level: "source", token_budget: 700}' 2>/dev/null)"
-        source="$(curl --max-time 2 --silent -H "Content-Type: application/json" -H "Authorization: Bearer ${ZCIE_API_KEY:-}" \
-            -X POST --data "$expand_body" "${ZCIE_URL}/v1/expand" 2>/dev/null \
+        source="$(printf '%s' "$expand_body" | curl --max-time 2 --silent -H "Content-Type: application/json" -H "Authorization: Bearer ${ZCIE_API_KEY:-}" \
+            -X POST --data-binary @- "${ZCIE_URL}/v1/expand" 2>/dev/null \
             | jq -r '.items[0] | select(.status == "ok") | .content // empty' 2>/dev/null | head -n 40)"
         [ -n "$source" ] && printf 'source of %s:\n%s\n' "$(printf '%s' "$named" | jq -r '.title' 2>/dev/null)" "$source"
     fi
