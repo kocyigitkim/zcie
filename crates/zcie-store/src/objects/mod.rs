@@ -61,7 +61,16 @@ impl ObjectStore {
         let mut file = File::create(&temp_path)?;
         file.write_all(&compressed)?;
         file.sync_all()?;
-        fs::rename(&temp_path, &final_path)?;
+        if let Err(error) = fs::rename(&temp_path, &final_path) {
+            let _ = fs::remove_file(&temp_path);
+            // Windows does not replace a blob that another writer just stored and holds open.
+            if final_path.exists() {
+                return Ok(hash);
+            }
+            return Err(error.into());
+        }
+        // Windows cannot open a folder as a file (os error 5); NTFS keeps the rename in its journal.
+        #[cfg(unix)]
         File::open(folder)?.sync_all()?;
         Ok(hash)
     }
