@@ -20,6 +20,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+      - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -45,6 +46,20 @@ jobs:
           zcie query "where is apply_discount defined" | jq -e '.results | length > 0'
           zcie verify
           zcie daemon stop
+      - name: Diagnostics (only after a failure)
+        if: failure()
+        run: |
+          Z="$HOME/.zcie"; H="$Z/hooks"; D="$RUNNER_TEMP/demo"
+          K="$Z/config/claude-code.key"; [ -f "$K" ] || K="$Z/config/admin.key"
+          export ZCIE_API_KEY_FILE="$K" ZCIE_URL=http://127.0.0.1:47831
+          zcie daemon start || true
+          cwd="$(cygpath -w "$D" | sed 's/\\/\\\\/g')"
+          echo "== user-prompt-submit"; printf '%s' "{\"session_id\":\"d1\",\"cwd\":\"$cwd\",\"prompt\":\"Karar: dağıtım sunucusu ZZTOP42 olacak.\"}" | bash -x "$H/user-prompt-submit.sh" 2>&1 | tail -40
+          sleep 3
+          echo "== query"; (cd "$D" && zcie query "dağıtım sunucusu" | head -30)
+          echo "== inject-context"; printf '%s' "{\"session_id\":\"d2\",\"cwd\":\"$cwd\",\"prompt\":\"Bu projede dağıtım için hangi sunucuyu kullanıyoruz?\"}" | bash -x "$H/inject-context.sh" 2>&1 | tail -60
+          echo "== daemon log"; tail -40 "$Z/instances/local/telemetry/logs/zcied.out" || true
+          echo "== activity"; tail -8 "$Z/stats/activity.jsonl" || true
       - uses: actions/upload-artifact@v4
         with:
           name: zcie-${{ runner.os }}
