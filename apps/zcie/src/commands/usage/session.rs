@@ -50,6 +50,18 @@ pub struct Session {
     pub reads: u64,
     /// Grep, Glob and search Bash commands.
     pub searches: u64,
+    /// Images in the user messages of the main thread (and in their tool results).
+    #[serde(default)]
+    pub images: u64,
+    /// Characters of the output of Bash reads (cat, sed, head, grep ...), subagents included.
+    #[serde(default)]
+    pub bash_read_chars: u64,
+    /// Input + cache read + cache write tokens of each main-thread call, summed, and the calls: the
+    /// average context of a call is `context_sum / context_calls`.
+    #[serde(default)]
+    pub context_sum: u64,
+    #[serde(default)]
+    pub context_calls: u64,
     /// ZCIE context capsules.
     pub capsules: u64,
     /// Characters of the capsules.
@@ -118,6 +130,10 @@ impl Session {
             (&mut self.output, other.output),
             (&mut self.reads, other.reads),
             (&mut self.searches, other.searches),
+            (&mut self.images, other.images),
+            (&mut self.bash_read_chars, other.bash_read_chars),
+            (&mut self.context_sum, other.context_sum),
+            (&mut self.context_calls, other.context_calls),
             (&mut self.capsules, other.capsules),
             (&mut self.capsule_chars, other.capsule_chars),
         ];

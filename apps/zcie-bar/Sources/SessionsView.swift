@@ -31,6 +31,8 @@ struct SessionsSection: View {
                     TableColumn("Cost") { r in Text(short(r.cost)).monospacedDigit() }.width(70)
                     TableColumn("Per turn") { r in Text(short(r.costPerTurn)).monospacedDigit() }.width(70)
                     TableColumn("Subagents") { r in Text(r.subagents == 0 ? "—" : "\(r.subagents) · \(Int(r.subagentShare * 100))%").monospacedDigit() }.width(90)
+                    TableColumn("Context") { r in Text(r.avgContext.map { "\($0 / 1000)k · \(r.images ?? 0) img" } ?? "—").monospacedDigit() }.width(110)
+                    TableColumn("Main cause") { r in Text(r.cause ?? "—").foregroundStyle(.secondary) }.width(110)
                     TableColumn("In the saving") { r in Text(r.outlier ? "no: outlier" : "yes").foregroundStyle(r.outlier ? .orange : .secondary) }.width(100)
                 }
                 .frame(height: min(CGFloat(rows.count) * 24 + 32, 320))

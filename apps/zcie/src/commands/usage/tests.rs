@@ -6,6 +6,7 @@ use std::path::Path;
 
 use serde_json::{Value, json};
 
+use super::honest;
 use super::report::{self, Root, Stat};
 use super::scan::{self, Session};
 
@@ -144,7 +145,10 @@ fn ts_22_03_the_report_compares_the_groups_of_each_project() {
     assert!(names.contains(&"x/repo") && names.contains(&"y/repo"), "{names:?}");
     assert!(!names.contains(&"bench"), "temporary folders are not projects");
     assert_eq!(report.saved_tokens, 2600);
-    assert_eq!(report::median(vec![3.0, 1.0, 2.0, 10.0]), Some(2.5));
+    // ADR-029 (TS-29-05): a 3-turn part does not pull the median of an 81-turn session.
+    assert_eq!(report::weighted_median(vec![(212.0, 3.0), (1544.0, 81.0)]), Some(1544.0));
+    assert_eq!(report::weighted_median(vec![(1.0, 1.0), (3.0, 1.0)]), Some(2.0));
+    assert_eq!(report::weighted_median(vec![]), None);
 }
 
 #[test]
@@ -217,6 +221,15 @@ fn ts_22_10_a_session_that_zcie_joined_later_is_split() {
 }
 
 #[test]
+fn ts_22_11_tiny_one_turn_sessions_do_not_make_the_large_ones_outliers() {
+    let zcie = vec![session("/work/beta", true, 1000, 50), session("/work/beta", true, 1100, 20), session("/work/beta", true, 1050, 30)];
+    let plain: Vec<Session> = (0..6).map(|_| session("/work/beta", false, 1, 1)).collect();
+    let (rows, outliers) = super::honest::rows(&zcie, &plain);
+    assert!(outliers.is_empty(), "the turn-weighted median of each group is 1000 and 1, not a shared one");
+    assert_eq!(rows.len(), 9);
+}
+
+#[test]
 fn ts_24_01_an_outlier_session_is_listed_but_left_out_of_the_saving() {
     let mut sessions = vec![session("/work/alpha", true, 100, 2), session("/work/alpha", true, 5000, 3)];
     sessions.extend([200, 300, 400].map(|t| session("/work/alpha", false, t, 1)));
@@ -231,7 +244,7 @@ fn ts_24_01_an_outlier_session_is_listed_but_left_out_of_the_saving() {
     let report = report::build(sessions, Vec::new(), "2026-10-01", &mut root);
     let alpha = &report.projects[0];
     let big = alpha.sessions.iter().find(|r| r.turns == 3).expect("the large session");
-    assert!(big.outlier, "5000 per turn ≥ 3 × the median 300");
+    assert!(big.outlier, "5000 per turn ≥ 3 × the turn-weighted median 350");
     assert_eq!((big.subagents, (big.subagent_share * 100.0).round()), (6, 93.0));
     assert_eq!(alpha.saving.excluded, 1);
     assert_eq!(alpha.saving.percent, Some((1.0 - 100.0 / 300.0) * 100.0), "100 against the median 300, the outlier left out");
@@ -240,4 +253,44 @@ fn ts_24_01_an_outlier_session_is_listed_but_left_out_of_the_saving() {
     assert_eq!((report.automated.sessions, report.automated.cost), (1, 50));
     assert_eq!(super::honest::confidence(4, 12, false), "medium");
     assert_eq!(super::honest::confidence(12, 12, false), "high");
+}
+
+#[test]
+fn f5_01_images_bash_reads_and_context_are_counted_per_session() {
+    let dir = tempfile::tempdir().expect("tmp");
+    let projects = dir.path().join("projects");
+    let t = "2026-10-18T10:00:00Z";
+    let usage = |input: u64, write: u64, read: u64, output: u64| json!({"input_tokens": input, "cache_creation_input_tokens": write, "cache_read_input_tokens": read, "output_tokens": output});
+    let call = |id: &str, usage: Value, part: Value| json!({"type": "assistant", "cwd": "/work/alpha", "timestamp": t, "message": {"id": id, "usage": usage, "content": [part]}});
+    let result = |id: &str, content: Value| json!({"type": "user", "timestamp": t, "message": {"content": [{"type": "tool_result", "tool_use_id": id, "content": content}]}});
+    let records = vec![
+        json!({"type": "user", "cwd": "/work/alpha", "timestamp": t, "message": {"role": "user", "content": [{"type": "text", "text": "show big.rs"}, {"type": "image", "source": {}}]}}),
+        call("a1", usage(10, 100, 1000, 5), json!({"type": "tool_use", "id": "b1", "name": "Bash", "input": {"command": "cat big.rs"}})),
+        result("b1", json!("x".repeat(1000))),
+        call("a2", usage(20, 0, 3000, 50), tool("Read", json!({"file_path": "/work/alpha/big.rs"}))),
+        result("r1", json!([{"type": "image", "source": {}}, {"type": "text", "text": "ok"}])),
+        json!({"type": "user", "isSidechain": true, "timestamp": t, "message": {"content": [{"type": "image", "source": {}}]}}),
+    ];
+    write_lines(&projects.join("-work-alpha/s9.jsonl"), &records, false);
+    let sessions = scan::scan(&projects, &dir.path().join("cache.json")).expect("scan");
+    let s9 = &sessions["s9"];
+    assert_eq!((s9.images, s9.bash_read_chars), (2, 1000), "a typed image and a tool result image; the sidechain image is not counted");
+    assert_eq!((s9.context_sum, s9.context_calls, s9.output), (4130, 2, 55));
+    let (rows, _) = honest::rows(&[], std::slice::from_ref(s9));
+    let row = &rows[0];
+    assert_eq!((row.avg_context, row.images, row.image_tokens_est, row.bash_read_chars), (2065, 2, 6000, 1000));
+    assert!((row.output_share - 275.0 / 830.0).abs() < 1e-9, "output 55 × 5 of 830 units");
+    assert_eq!(row.cause, "images", "6000 image tokens beat 275 output units");
+}
+
+#[test]
+fn f5_02_the_main_cause_is_the_largest_cost_driver() {
+    let mut s = Session::default();
+    assert_eq!(honest::main_cause(&s), "-");
+    s.output = 2000;
+    assert_eq!(honest::main_cause(&s), "output");
+    s.subagent_cost = 20_000;
+    assert_eq!(honest::main_cause(&s), "subagents");
+    let long = Session { context_sum: 400_000, context_calls: 2, ..Session::default() };
+    assert_eq!(honest::main_cause(&long), "long context");
 }

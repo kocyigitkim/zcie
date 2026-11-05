@@ -54,6 +54,11 @@ impl Client {
         }
     }
 
+    /// A client of the same daemon for another workspace.
+    pub fn with_workspace(&self, workspace: &str) -> Client {
+        Client { workspace: workspace.to_string(), ..self.clone() }
+    }
+
     /// Returns the default workspace of the client.
     pub fn workspace(&self) -> &str {
         &self.workspace

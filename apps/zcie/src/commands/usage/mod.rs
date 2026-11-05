@@ -38,6 +38,9 @@ pub struct UsageArgs {
     /// reads Desktop, Documents or Downloads.
     #[arg(long)]
     pub no_disk: bool,
+    /// Print the 10 most expensive sessions with their main cause of cost.
+    #[arg(long)]
+    pub explain: bool,
 }
 
 /// Runs `zcie usage`.
@@ -50,6 +53,10 @@ pub fn run(args: &UsageArgs, home: &Path, client: &zcie_sdk::Client) -> anyhow::
     report.index = Some(index::build(home, client, &report.since));
     if args.json {
         return super::print_json(&report);
+    }
+    if args.explain {
+        print_explain(&report);
+        return Ok(());
     }
     print_table(&report);
     Ok(())
@@ -140,6 +147,27 @@ fn saving_text(project: &Project) -> (String, String) {
         // A saving is fewer tokens: "-42%". More tokens with ZCIE: "+7%".
         (Some(percent), Some(tokens)) => (format!("{}{:.0}%", if percent >= 0.0 { "-" } else { "+" }, percent.abs()), short(tokens as f64)),
         _ => ("-".into(), project.saving.note.clone()),
+    }
+}
+
+/// One line for each of the 10 most expensive sessions of the window.
+fn print_explain(report: &Report) {
+    let mut rows: Vec<(&str, &honest::SessionRow)> = report.projects.iter().flat_map(|p| p.sessions.iter().map(move |s| (p.name.as_str(), s))).collect();
+    rows.sort_by_key(|row| std::cmp::Reverse(row.1.cost));
+    println!("most expensive sessions, last {} days (cost in input-token units)", report.window_days);
+    for (name, s) in rows.iter().take(10) {
+        println!(
+            "{name} {} cost {} subagents {:.0}% avg context {}k images {} (~{}k tokens) bash reads {} chars output {:.0}% main cause: {}",
+            s.id,
+            short(s.cost as f64),
+            s.subagent_share * 100.0,
+            s.avg_context / 1000,
+            s.images,
+            s.image_tokens_est / 1000,
+            short(s.bash_read_chars as f64),
+            s.output_share * 100.0,
+            s.cause,
+        );
     }
 }
 

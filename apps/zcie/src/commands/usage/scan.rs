@@ -2,7 +2,7 @@
 //! counters of one session; a file in `<session>/subagents/` adds to its parent session. The cache
 //! keeps the byte offset of the last complete line of each file, so a scan reads only new lines.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
@@ -14,9 +14,11 @@ use crate::commands::import::{NOT_USER_TEXT, clean_text, message_text};
 pub use super::session::{Day, Session};
 
 /// Version of the cache format. A cache of another version is ignored and built again.
-const CACHE_VERSION: u32 = 3;
+const CACHE_VERSION: u32 = 6;
 /// First words of Bash commands that search files.
 const SEARCH_COMMANDS: [&str; 5] = ["grep", "rg", "find", "fd", "ls"];
+/// First words of Bash commands that print file contents.
+const READ_COMMANDS: [&str; 8] = ["cat", "sed", "head", "tail", "grep", "rg", "awk", "less"];
 /// Shortest time between two writes of the cache.
 const SAVE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(60);
 
@@ -30,6 +32,9 @@ struct FileState {
     /// Time of a typed message with no answer yet: the ZCIE capsule of that message comes after it.
     #[serde(default)]
     open_turn: Option<String>,
+    /// IDs of the Bash calls that read files, until their results come.
+    #[serde(default)]
+    pending_reads: BTreeSet<String>,
     /// Counters of the file.
     session: Session,
 }
@@ -172,6 +177,9 @@ fn read_new_lines(path: &Path, state: &mut FileState) -> anyhow::Result<()> {
 
 /// Adds one record to the counters.
 fn apply(record: &Record, state: &mut FileState) {
+    if record.kind == "user" {
+        user_content(record, state);
+    }
     let session = &mut state.session;
     if let Some(cwd) = record.cwd.as_deref().filter(|_| session.cwd.is_empty()) {
         session.cwd = cwd.to_string();
@@ -205,6 +213,9 @@ fn assistant(record: &Record, time: &str, state: &mut FileState) {
         if name.starts_with("mcp__zcie__") {
             start_zcie(state, time);
         }
+        if name == "Bash" && READ_COMMANDS.contains(&command_word(&part["input"])) {
+            state.pending_reads.extend(part["id"].as_str().map(str::to_string));
+        }
         tool_call(name, &part["input"], &mut state.session);
     }
     let id = message["id"].as_str().map(str::to_string);
@@ -222,19 +233,52 @@ fn assistant(record: &Record, time: &str, state: &mut FileState) {
     session.cache_write_1h += usage["cache_creation"]["ephemeral_1h_input_tokens"].as_u64().unwrap_or(0);
     session.cache_read += read;
     session.output += output;
+    if record.sidechain != Some(true) {
+        session.context_sum += input + write + read;
+        session.context_calls += 1;
+    }
     day(session, time).tokens += input + write + read + output;
+}
+
+/// The first word of the command of a Bash call.
+fn command_word(input: &Value) -> &str {
+    input["command"].as_str().unwrap_or_default().split_whitespace().next().unwrap_or_default()
+}
+
+/// Counts the images of a user record (main thread) and the characters of the Bash reads that it
+/// answers.
+fn user_content(record: &Record, state: &mut FileState) {
+    let main = record.sidechain != Some(true);
+    for part in record.message.as_ref().and_then(|m| m["content"].as_array()).into_iter().flatten() {
+        match part["type"].as_str() {
+            Some("image") if main => state.session.images += 1,
+            Some("tool_result") => {
+                if main {
+                    state.session.images += part["content"].as_array().map_or(0, |a| a.iter().filter(|p| p["type"] == "image").count() as u64);
+                }
+                if part["tool_use_id"].as_str().is_some_and(|id| state.pending_reads.remove(id)) {
+                    state.session.bash_read_chars += text_chars(&part["content"]);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// The characters of a tool result: a string, or the text parts of an array.
+fn text_chars(content: &Value) -> u64 {
+    match content {
+        Value::String(text) => text.chars().count() as u64,
+        Value::Array(parts) => parts.iter().filter_map(|p| p["text"].as_str()).map(|t| t.chars().count() as u64).sum(),
+        _ => 0,
+    }
 }
 
 fn tool_call(name: &str, input: &Value, session: &mut Session) {
     match name {
         "Read" => session.reads += 1,
         "Grep" | "Glob" => session.searches += 1,
-        "Bash" => {
-            let first = input["command"].as_str().unwrap_or_default().split_whitespace().next().unwrap_or_default();
-            if SEARCH_COMMANDS.contains(&first) {
-                session.searches += 1;
-            }
-        }
+        "Bash" if SEARCH_COMMANDS.contains(&command_word(input)) => session.searches += 1,
         _ => {}
     }
 }
@@ -244,7 +288,9 @@ fn attachment(record: &Record, time: &str, state: &mut FileState) {
     let Some(attachment) = &record.attachment else { return };
     let content = attachment["content"].as_str().unwrap_or_default();
     let command = attachment["command"].as_str().unwrap_or_default();
-    if content.trim().is_empty() || !(command.contains(".zcie/hooks/") || content.starts_with("ZCIE ")) {
+    if content.trim().is_empty()
+        || !(command.contains(".zcie/hooks/") || content.starts_with("ZCIE ") || content.starts_with("ZCIE:"))
+    {
         return;
     }
     start_zcie(state, time);

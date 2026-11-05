@@ -9,11 +9,13 @@ pub mod data;
 pub mod doctor;
 pub mod import;
 pub mod key;
+pub mod memory;
 pub mod opencode;
 pub mod project;
 pub mod project_add;
 pub mod service;
 pub mod setup;
+pub mod telemetry;
 pub mod usage;
 pub mod vector;
 
@@ -51,6 +53,8 @@ pub fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Cursor { action } => cursor::run(action, &home, &cli.url),
         Command::Codex { action } => codex::run(action, &home, &cli.url),
         Command::Vector { action } => vector::run(action, &home),
+        Command::Telemetry { action } => telemetry::run(action, &home),
+        Command::Memory { action } => memory::run(action, &client),
         Command::Import { source: ImportSource::Claude(args) } => import::run(args, &client),
         Command::Setup(args) => setup::run(&args, &home),
         Command::Config { action } => setup::config::run(action, &home),

@@ -119,6 +119,67 @@ fn ts_22_05_the_read_guard_and_the_gate_record_statistics() {
     assert!(!workspace_root().join("adapters/claude-code/stats").exists());
 }
 
+/// TS-22-06: a Bash print of a large file is refused with the window command; other Bash commands pass.
+#[test]
+fn ts_22_06_a_bash_print_of_a_large_file_is_refused_with_the_window() {
+    let dir = tempfile::tempdir().unwrap();
+    let cwd = dir.path().display().to_string();
+    let big = dir.path().join("big.rs");
+    std::fs::write(&big, "let x = 1;\n".repeat(900)).unwrap();
+    let small = dir.path().join("small.rs");
+    std::fs::write(&small, "let x = 1;\n".repeat(10)).unwrap();
+    let bash = |command: String| json!({"session_id": "s2", "cwd": cwd, "tool_name": "Bash", "tool_input": {"command": command}});
+    let out = hook("read-guard.sh", &bash(format!("cat {}", big.display())), dir.path(), None);
+    let value: Value = serde_json::from_str(&out).unwrap();
+    let decision = &value["hookSpecificOutput"];
+    assert_eq!(decision["permissionDecision"], "deny", "{out}");
+    assert!(decision.get("updatedInput").is_none(), "{out}");
+    let reason = decision["permissionDecisionReason"].as_str().unwrap();
+    assert!(reason.contains("big.rs has 900 lines") && reason.contains("sed -n '1,250p'"), "{reason}");
+    assert_eq!(hook("read-guard.sh", &bash(format!("cat {} | head", big.display())), dir.path(), None), "");
+    assert_eq!(hook("read-guard.sh", &bash("cargo build".into()), dir.path(), None), "");
+    assert_eq!(hook("read-guard.sh", &bash(format!("cat {}", small.display())), dir.path(), None), "");
+}
+
+/// TS-22-07: a Read of a large PNG gets a copy scaled to ZCIE_IMAGE_MAX_PX (macOS sips; skipped elsewhere).
+#[test]
+fn ts_22_07_a_large_image_is_read_as_a_scaled_copy() {
+    if Command::new("sips").arg("--help").output().is_err() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let cwd = dir.path().display().to_string();
+    // A 1x1 white BMP, converted to PNG and enlarged to 2400x1350.
+    let mut bmp = Vec::new();
+    bmp.extend_from_slice(b"BM");
+    bmp.extend_from_slice(&58u32.to_le_bytes());
+    bmp.extend_from_slice(&0u32.to_le_bytes());
+    bmp.extend_from_slice(&54u32.to_le_bytes());
+    bmp.extend_from_slice(&40u32.to_le_bytes());
+    bmp.extend_from_slice(&1i32.to_le_bytes());
+    bmp.extend_from_slice(&1i32.to_le_bytes());
+    bmp.extend_from_slice(&1u16.to_le_bytes());
+    bmp.extend_from_slice(&24u16.to_le_bytes());
+    bmp.extend_from_slice(&[0u8; 24]);
+    bmp.extend_from_slice(&[255, 255, 255, 0]);
+    let src = dir.path().join("src.bmp");
+    std::fs::write(&src, &bmp).unwrap();
+    let png = dir.path().join("shot.png");
+    let big = dir.path().join("big.png");
+    let sips = |args: &[&str]| assert!(Command::new("sips").args(args).output().unwrap().status.success(), "sips {args:?}");
+    sips(&["-s", "format", "png", src.to_str().unwrap(), "--out", png.to_str().unwrap()]);
+    sips(&["-z", "1350", "2400", png.to_str().unwrap(), "--out", big.to_str().unwrap()]);
+    let input = json!({"session_id": "s3", "cwd": cwd, "tool_name": "Read", "tool_input": {"file_path": big.display().to_string()}});
+    let out = hook("read-guard.sh", &input, dir.path(), None);
+    let value: Value = serde_json::from_str(&out).unwrap();
+    let copy = value["hookSpecificOutput"]["updatedInput"]["file_path"].as_str().unwrap().to_string();
+    assert_ne!(copy, big.display().to_string());
+    assert!(value["hookSpecificOutput"]["additionalContext"].as_str().unwrap().contains("scaled to 1200 px"), "{out}");
+    let info = Command::new("sips").args(["-g", "pixelWidth", "-g", "pixelHeight"]).arg(&copy).output().unwrap();
+    let text = String::from_utf8(info.stdout).unwrap();
+    assert!(text.contains("pixelWidth: 1200"), "{text}");
+}
+
 /// TS-23-01: the daemon writes one activity line for each query, expand, capture and job.
 #[test]
 fn ts_23_01_the_daemon_logs_reads_and_writes() {

@@ -92,6 +92,18 @@ pub enum Command {
         #[command(subcommand)]
         action: commands::vector::VectorAction,
     },
+    /// Export the activity log as OpenTelemetry traces (OTLP/JSON, ADR-032).
+    Telemetry {
+        /// The telemetry action.
+        #[command(subcommand)]
+        action: commands::telemetry::TelemetryAction,
+    },
+    /// Share the decisions of a project through a file (ADR-032).
+    Memory {
+        /// The memory action.
+        #[command(subcommand)]
+        action: commands::memory::MemoryAction,
+    },
     /// Import earlier conversations into the memory of their projects.
     Import {
         /// The source.

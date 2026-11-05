@@ -1,6 +1,7 @@
 // The report of `zcie usage --json` (ADR-022) and the store that loads it.
 
 import Foundation
+import UserNotifications
 
 struct UsageReport: Codable, Equatable {
     var generatedAt: String
@@ -98,6 +99,8 @@ final class UsageStore: ObservableObject {
     /// Time of the last successful refresh.
     @Published var lastRefresh: Date?
     private var timer: Timer?
+    /// Outlier sessions of the last refresh; nil before the first load (ADR-031: old outliers get no alert).
+    private var outliers: Set<String>?
 
     /// Open menus and report windows. With none open, the refresh runs every `idleInterval`.
     private var viewers = 0
@@ -147,12 +150,39 @@ final class UsageStore: ObservableObject {
                     var same = report
                     same.generatedAt = self.report?.generatedAt ?? ""
                     if same != self.report { self.report = report }
+                    self.alertNewOutliers(report)
                     self.lastRefresh = Date()
                     self.error = nil
                 case .failure(let error): self.error = error.localizedDescription
                 }
                 self.loading = false
             }
+        }
+    }
+
+    /// Sends one notification for each session that became an outlier since the last refresh (ADR-031, D-107).
+    private func alertNewOutliers(_ report: UsageReport) {
+        var now = Set<String>()
+        for project in report.projects {
+            let sessions = project.sessions ?? []
+            let usual = sessions.filter { !$0.outlier }.map(\.costPerTurn).sorted()
+            for session in sessions where session.outlier {
+                now.insert(session.id)
+                guard let old = outliers, !old.contains(session.id) else { continue }
+                let factor = usual.isEmpty ? "" : String(format: " %.0f×", session.costPerTurn / max(usual[usual.count / 2], 1))
+                UsageStore.notify(id: session.id, body: "\(project.name): this session costs\(factor) the usual cost per turn of the project.")
+            }
+        }
+        outliers = now
+    }
+
+    nonisolated static func notify(id: String, body: String) {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { granted, _ in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = "ZCIE: costly session"
+            content.body = body
+            UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "zcie-outlier-\(id)", content: content, trigger: nil))
         }
     }
 
@@ -251,4 +281,11 @@ struct SessionRow: Codable, Equatable, Identifiable {
     var subagents: Int64
     var subagentShare: Double
     var outlier: Bool
+    // Added in ADR-033: optional, so that an older zcie still works.
+    var images: Int64?
+    var imageTokensEst: Int64?
+    var bashReadChars: Int64?
+    var avgContext: Int64?
+    var outputShare: Double?
+    var cause: String?
 }

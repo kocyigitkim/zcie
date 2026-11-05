@@ -11,7 +11,7 @@ use super::scan::Session;
 /// Folders of temporary sessions (benchmarks, scratch folders): never a project.
 const TEMPORARY: [&str; 4] = ["/tmp", "/private/tmp", "/var/folders", "/private/var"];
 /// The method note of the report.
-pub const METHOD: &str = "Observed on your sessions: the median cost per turn in input-token units (input ×1, cache write ×1.25 or ×2, cache read ×0.1, output ×5, the price ratios of Claude) of the sessions with ZCIE against the sessions with no ZCIE of the same project. A project with no session with no ZCIE is compared with the sessions with no ZCIE of all projects; that value is marked rough (≈). A session that costs 3 times the median per turn of its project or more (one large task, for example many subagents) is an outlier: it is listed but left out of the saving. The confidence is low with fewer than 3 sessions in a group, medium with fewer than 10. Each value shows the number of sessions it uses; a value from few sessions changes much. The tasks of the groups are not the same, so each value is an estimate. The controlled measurement is the isolated benchmark (ADR-019).";
+pub const METHOD: &str = "Observed on your sessions: the median cost per turn (each session weighted by its turns) in input-token units (input ×1, cache write ×1.25 or ×2, cache read ×0.1, output ×5, the price ratios of Claude) of the sessions with ZCIE against the sessions with no ZCIE of the same project. A project with no session with no ZCIE is compared with the sessions with no ZCIE of all projects; that value is marked rough (≈). A session that costs 3 times the turn-weighted median per turn of its group (with or with no ZCIE), or of the project when the group has fewer than 3 sessions, or more (one large task, for example many subagents) is an outlier: it is listed but left out of the saving. The confidence is low with fewer than 3 sessions in a group, medium with fewer than 10. Each value shows the number of sessions it uses; a value from few sessions changes much. The tasks of the groups are not the same, so each value is an estimate. The controlled measurement is the isolated benchmark (ADR-019).";
 
 /// The project of a folder.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -240,9 +240,9 @@ struct Baseline {
 }
 
 fn baseline<'a>(buckets: impl Iterator<Item = &'a Bucket>) -> Option<Baseline> {
-    let values: Vec<f64> = buckets.flat_map(|b| &b.plain).map(|s| s.weighted() / s.turns as f64).collect();
-    let sessions = values.len() as u64;
-    median(values).map(|per_turn| Baseline { per_turn, sessions })
+    let plain: Vec<&Session> = buckets.flat_map(|b| &b.plain).collect();
+    let sessions = plain.len() as u64;
+    per_turn_median(&plain, Session::weighted).map(|per_turn| Baseline { per_turn, sessions })
 }
 
 fn project(root: Root, bucket: &Bucket, since: &str, global: Option<Baseline>) -> Project {
@@ -284,18 +284,32 @@ fn unique_names(projects: &mut [Project]) {
     }
 }
 
-/// Median of a list; none for an empty list.
-pub fn median(mut values: Vec<f64>) -> Option<f64> {
-    if values.is_empty() {
-        return None;
+/// Median of (value, weight) pairs: the value at half of the total weight. A short session part
+/// (3 turns) must not count as much as a long session (81 turns) in a per-turn median (ADR-029).
+pub fn weighted_median(mut values: Vec<(f64, f64)>) -> Option<f64> {
+    values.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let total: f64 = values.iter().map(|v| v.1).sum();
+    let mut sum = 0.0;
+    for (i, (value, weight)) in values.iter().enumerate() {
+        sum += weight;
+        if sum * 2.0 > total {
+            return Some(*value);
+        }
+        if sum * 2.0 == total {
+            return Some(values.get(i + 1).map_or(*value, |next| (value + next.0) / 2.0));
+        }
     }
-    values.sort_by(f64::total_cmp);
-    let middle = values.len() / 2;
-    Some(if values.len().is_multiple_of(2) { (values[middle - 1] + values[middle]) / 2.0 } else { values[middle] })
+    None
+}
+
+/// Per-turn values of sessions, weighted by their turns.
+fn per_turn_median(sessions: &[&Session], value: impl Fn(&Session) -> f64) -> Option<f64> {
+    weighted_median(sessions.iter().map(|s| (value(s) / s.turns as f64, s.turns as f64)).collect())
 }
 
 fn group(sessions: &[Session]) -> Group {
-    let per_turn = |value: fn(&Session) -> u64| median(sessions.iter().map(|s| value(s) as f64 / s.turns as f64).collect());
+    let all: Vec<&Session> = sessions.iter().collect();
+    let per_turn = |value: fn(&Session) -> u64| per_turn_median(&all, |s| value(s) as f64);
     Group {
         sessions: sessions.len() as u64,
         turns: sessions.iter().map(|s| s.turns).sum(),
@@ -306,7 +320,7 @@ fn group(sessions: &[Session]) -> Group {
         output: sessions.iter().map(|s| s.output).sum(),
         tokens_per_turn: per_turn(Session::tokens),
         weighted: sessions.iter().map(Session::weighted).sum(),
-        weighted_per_turn: median(sessions.iter().map(|s| s.weighted() / s.turns as f64).collect()),
+        weighted_per_turn: per_turn_median(&all, Session::weighted),
         reads_per_turn: per_turn(|s| s.reads),
         searches_per_turn: per_turn(|s| s.searches),
         capsules: sessions.iter().map(|s| s.capsules).sum(),
