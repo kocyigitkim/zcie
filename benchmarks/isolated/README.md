@@ -11,6 +11,7 @@ The earlier benchmarks (`benchmarks/context`, condition U) use the installed sto
    - Claude Code gets only the settings of the condition (`--setting-sources project --settings <file>`). The model is fixed with `AB_MODEL` (default `sonnet`).
    - The seed selects the order of the conditions of each task and repetition.
    - The run stops if the frozen home differs from its manifest, before or after the run.
+   - hellfurylanguage (ADR-028): set `ZCIE_BENCH_HFL=<folder>` for `snapshot.py` and `run.py`, and add `../context/hfl.json`.
 3. Report: `python3 report.py <out.jsonl> [A0]` gives the means per task group and condition, and the paired differences to the baseline with 95 % bootstrap intervals.
 
 Conditions: `A0` no hooks; `A0P` no hooks and the tool profile `auto` (6 heavy tools denied, tool search on); `U` the ZCIE hooks; `UP` the ZCIE hooks and the profile `auto`. The difference `A0P − A0` is the effect of the tool profile; `U − A0` is the effect of the context; `UP − A0` is both.

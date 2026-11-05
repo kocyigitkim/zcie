@@ -2,6 +2,7 @@
 """Makes the frozen ZCIE home of the isolated benchmark (ADR-019, D-067).
 
 Usage: snapshot.py <out home> <samples dir> <tantivy dir> [model folder]
+With ZCIE_BENCH_HFL=<folder> it also indexes hellfurylanguage (ADR-028). "-" as samples or tantivy dir leaves them out.
 A fresh daemon indexes the benchmark projects with the project IDs of their `.claude/zcie_id`
 files (the tasks name some projects by ID) and stores the seed decisions below. Then it stops.
 The home is never changed again: each trial runs in a copy-on-write clone of it.
@@ -59,13 +60,19 @@ def hook_key(home):
 
 
 def main():
-    home, samples, tantivy = (os.path.abspath(a) for a in sys.argv[1:4])
+    home = os.path.abspath(sys.argv[1])
+    # "-" leaves out the sample projects or tantivy (for example a run with hellfurylanguage only).
+    samples, tantivy = (None if a == "-" else os.path.abspath(a) for a in sys.argv[2:4])
     model = sys.argv[4] if len(sys.argv) > 4 else os.path.expanduser("~/.zcie/models/potion-multilingual-128M")
     shutil.rmtree(home, ignore_errors=True)
     os.makedirs(os.path.join(home, "models"))
     os.symlink(os.path.abspath(model), os.path.join(home, "models", os.path.basename(model)))
-    roots = {name: os.path.join(samples, name) for name in ("ledger-rs", "atlas-ts", "orbit-py")}
-    roots["tantivy"] = tantivy
+    roots = {name: os.path.join(samples, name) for name in ("ledger-rs", "atlas-ts", "orbit-py")} if samples else {}
+    if tantivy:
+        roots["tantivy"] = tantivy
+    # hellfurylanguage (ADR-028, D-094): indexed only when ZCIE_BENCH_HFL names its folder.
+    if os.environ.get("ZCIE_BENCH_HFL"):
+        roots["hellfurylanguage"] = os.path.abspath(os.environ["ZCIE_BENCH_HFL"])
     port = common.free_port()
     proc = common.start_daemon(home, port)
     try:
@@ -75,7 +82,7 @@ def main():
             info = common.call(port, "POST", "/v1/projects", {"project_id": project_id(root), "name": name, "root": root, "index": True}, admin)
             projects[name] = {"id": info["project_id"], "root": root}
         common.wait_idle(port, admin)
-        for name, decisions in SEED.items():
+        for name, decisions in ((n, d) for n, d in SEED.items() if n in projects):
             seed(port, admin, name, projects[name]["id"], decisions)
         common.wait_idle(port, admin)
     finally:

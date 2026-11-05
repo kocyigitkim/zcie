@@ -36,8 +36,8 @@ def call(port, method, path, body=None, key=None, timeout=60):
         return json.loads(response.read())
 
 
-def start_daemon(home, port, log_name="zcied.log"):
-    env = dict(clean_env(), ZCIE_SERVER_HTTP_ADDR=f'"127.0.0.1:{port}"')
+def start_daemon(home, port, log_name="zcied.log", extra_env=None):
+    env = dict(clean_env(), ZCIE_SERVER_HTTP_ADDR=f'"127.0.0.1:{port}"', **(extra_env or {}))
     log = open(os.path.join(home, log_name), "a")
     proc = subprocess.Popen([ZCIED, "--home", home], env=env, stdout=log, stderr=log)
     for _ in range(1200):

@@ -10,7 +10,7 @@ its own port; the clone is deleted after the trial, so no trial changes another 
 gets only the settings of the condition (`--setting-sources project` and `--settings <file>`);
 the hooks of the user are not loaded. The model is fixed (`AB_MODEL`, default `sonnet`).
 For each task and repetition the conditions run in an order that the seed selects.
-Task files may use {samples} and {tantivy} in "cwd" (ZCIE_BENCH_SAMPLES, ZCIE_BENCH_TANTIVY).
+Task files may use {samples}, {tantivy} and {hfl} in "cwd" (ZCIE_BENCH_SAMPLES, ZCIE_BENCH_TANTIVY, ZCIE_BENCH_HFL).
 """
 import concurrent.futures
 import json
@@ -33,7 +33,8 @@ PROFILE_DENY = ["Skill", "Agent", "Workflow", "ScheduleWakeup", "ReportFindings"
 # The hooks of `zcie claude setup` (capture, inject and guards; no tool unlock in a benchmark).
 HOOKS = [
     ("SessionStart", None, "session-start.sh"), ("UserPromptSubmit", None, "user-prompt-submit.sh"),
-    ("PostToolUse", "Edit|Write|MultiEdit|NotebookEdit|Bash", "post-tool-use.sh"), ("SessionEnd", None, "stop.sh"),
+    ("PostToolUse", "Edit|Write|MultiEdit|NotebookEdit|Bash", "post-tool-use.sh"),
+    ("PostToolUseFailure", "Bash", "post-tool-use.sh"), ("SessionEnd", None, "stop.sh"),
     ("Stop", None, "assistant-message.sh"), ("UserPromptSubmit", None, "inject-context.sh"),
     ("SessionStart", "startup", "session-map.sh"), ("SessionStart", "startup", "session-context.sh"),
     ("UserPromptSubmit", None, "session-guard.sh"), ("PreToolUse", "Read", "read-guard.sh"),
@@ -44,7 +45,8 @@ TIMEOUTS = {"verify-gate.sh": 150, "inject-context.sh": 10, "session-map.sh": 10
 
 
 def load_tasks(paths):
-    folders = {"samples": os.environ.get("ZCIE_BENCH_SAMPLES", ""), "tantivy": os.environ.get("ZCIE_BENCH_TANTIVY", "")}
+    folders = {"samples": os.environ.get("ZCIE_BENCH_SAMPLES", ""), "tantivy": os.environ.get("ZCIE_BENCH_TANTIVY", ""),
+               "hfl": os.environ.get("ZCIE_BENCH_HFL", "")}
     tasks = []
     for path in paths:
         group = os.path.splitext(os.path.basename(path))[0]

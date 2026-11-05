@@ -3,7 +3,9 @@
 
 Usage: report.py <out.jsonl> [baseline condition, default A0]
 For each task group (code, edit, locate, memory, …) and condition: runs, correct runs, mean input
-tokens (input + cache creation + cache read), mean file-search calls (Read, Grep, Glob), mean turns.
+tokens (input + cache creation + cache read), the mean cache split and the weighted cost (input ×1,
+cache creation ×1.25, cache read ×0.1, output ×5, the weights of `zcie usage`; ADR-028), mean
+file-search calls (Read, Grep, Glob), mean turns.
 For each condition other than the baseline: the mean paired difference of the tokens and of the
 file-search calls to the baseline (same task, same repetition) with a 95 % bootstrap interval.
 Unlike groups are never combined.
@@ -19,6 +21,10 @@ SEARCH = ("Read", "Grep", "Glob")
 
 def tokens(r):
     return r.get("input", 0) + r.get("cache_create", 0) + r.get("cache_read", 0)
+
+
+def cost(r):
+    return r.get("input", 0) + 1.25 * r.get("cache_create", 0) + 0.1 * r.get("cache_read", 0) + 5 * r.get("output", 0)
 
 
 def searches(r):
@@ -42,8 +48,9 @@ def main():
         groups[r["group"]].append(r)
     for group, items in sorted(groups.items()):
         print(f"\n## {group}\n")
-        print("| condition | runs | correct | input tokens/run | tokens per correct run | file-search calls/run | turns/run |")
-        print("|---|---|---|---|---|---|---|")
+        print("| condition | runs | correct | input tokens/run | tokens per correct run | cache creation/run | cache read/run "
+              "| weighted cost/run | file-search calls/run | turns/run |")
+        print("|---|---|---|---|---|---|---|---|---|---|")
         by_condition = collections.defaultdict(list)
         for r in items:
             by_condition[r["condition"]].append(r)
@@ -51,7 +58,8 @@ def main():
             correct = sum(bool(r.get('correct')) for r in runs)
             per_success = sum(map(tokens, runs)) / correct if correct else float("nan")
             print(f"| {condition} | {len(runs)} | {correct} | {statistics.mean(map(tokens, runs)):,.0f} | {per_success:,.0f} "
-                  f"| {statistics.mean(map(searches, runs)):.2f} | {statistics.mean(r.get('turns') or 0 for r in runs):.2f} |")
+                  f"| {statistics.mean(r.get('cache_create', 0) for r in runs):,.0f} | {statistics.mean(r.get('cache_read', 0) for r in runs):,.0f} "
+                  f"| {statistics.mean(map(cost, runs)):,.0f} | {statistics.mean(map(searches, runs)):.2f} | {statistics.mean(r.get('turns') or 0 for r in runs):.2f} |")
         pairs = {(r["task"], r["rep"]): r for r in by_condition.get(base, [])}
         for condition, runs in sorted(by_condition.items()):
             if condition == base:
@@ -64,7 +72,8 @@ def main():
             base_mean = statistics.mean(tokens(b) for _, b in matched)
             low, high = interval(token_diff)
             slow, shigh = interval(search_diff)
-            print(f"\n{condition} − {base} ({len(matched)} pairs): tokens {statistics.mean(token_diff):+,.0f} "
+            cost_diff = statistics.mean(cost(r) - cost(b) for r, b in matched) / statistics.mean(cost(b) for _, b in matched)
+            print(f"\n{condition} − {base} ({len(matched)} pairs): weighted cost {cost_diff:+.1%}; tokens {statistics.mean(token_diff):+,.0f} "
                   f"({statistics.mean(token_diff) / base_mean:+.1%}; 95 % interval {low:+,.0f} to {high:+,.0f}); "
                   f"file-search calls {statistics.mean(search_diff):+.2f} (95 % interval {slow:+.2f} to {shigh:+.2f})")
 
