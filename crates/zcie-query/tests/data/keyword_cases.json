@@ -1,0 +1,1445 @@
+[
+ {
+  "_comment": "Labels for keyword_cases.json (the correct answer, not the current output). class: exact_ref = the whole question is one ref token (ev:, file:, sym:, mem:, task:, commit:). symbol_definition = where or what is the definition of a named code thing. callers = who calls, uses or references a named function. timeline = about the PAST conversation, decisions, rules, or what the user or we said or chose; a question about why CODE behaves some way is NOT timeline (it is search). implementation = which commit or change implemented something. task = has a task ref (#123, ZC-42) and no stronger class. search = everything else. intent: edit = asks to change code (English edit verb first, or a Turkish edit verb at the end of the sentence; an edit verb in the middle of a sentence does not count); locate = asks which file or where to change, or where the code that does Y is (hangi dosyada, nerede, where is the); where X is defined is general, not locate; trace = a flow or path from A to B, or a call chain; memory = decisions, rules, history (timeline-like, commit history); a task ref (task class) also reads its history, so task-class questions without an edit verb are memory; explain = how or why code works; general = anything else (chat, 'devam et', generic requests). a call chain or flow question ('trace the call chain from A to B', 'cagri zincirini cikar') is class search, intent trace; set: every 3rd case (index % 3 == 2) is holdout, the rest dev. Holdout is for the gate; do not tune rules to it."
+ },
+ {
+  "q": "apply_late_fee nerede tanımlı?",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "IndexWriter nerede tanımlanmış?",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "UserService'in tanımı nedir?",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "holdout"
+ },
+ {
+  "q": "parse_config fonksiyonu nerede tanımlanmış?",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "IndexWriter nerede tanimli?",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "UserService'in tanimi nedir?",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "holdout"
+ },
+ {
+  "q": "apply_late_fee'nin tanımını göster",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "parse_config nerede tanımlandı?",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "Bm25Weight'in tanımı nerede?",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "holdout"
+ },
+ {
+  "q": "RetryPolicy'nin tanimini goster",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "apply_late_fee'i kim çağırıyor?",
+  "class": "callers",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "parse_config nereden çağrılıyor?",
+  "class": "callers",
+  "intent": "general",
+  "set": "holdout"
+ },
+ {
+  "q": "IndexWriter'ı kim cagiriyor?",
+  "class": "callers",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "parse_config nereden cagriliyor?",
+  "class": "callers",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "UserService'i çağıran yerler hangileri?",
+  "class": "callers",
+  "intent": "general",
+  "set": "holdout"
+ },
+ {
+  "q": "bu function'ı kim call ediyor: apply_late_fee",
+  "class": "callers",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "kim çağırıyor sort_segments'i?",
+  "class": "callers",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "UserService'i nerelerde çağırıyoruz?",
+  "class": "callers",
+  "intent": "general",
+  "set": "holdout"
+ },
+ {
+  "q": "UserService'i nerelerde cagiriyoruz?",
+  "class": "callers",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "parse_config'i kim kullanıyor?",
+  "class": "callers",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "retry_budget'ı kim çağırır?",
+  "class": "callers",
+  "intent": "general",
+  "set": "holdout"
+ },
+ {
+  "q": "apply_late_fee'yi çağıran bir job var mı?",
+  "class": "callers",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "daha önce ne konuştuk parse_config hakkında?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "neden Redis'ten vazgeçtik?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "holdout"
+ },
+ {
+  "q": "Bu konuda ne karar verdik?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "kullanıcı testlerin ne zaman yapılmasını istedi?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "Kullanıcı bu özelliği istedi mi?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "holdout"
+ },
+ {
+  "q": "ne yapmıştık merge policy için?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "daha önce kural koymuş muyuz logging için?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "bunu anlaşmıştık, hatırlıyor musun?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "holdout"
+ },
+ {
+  "q": "Bunu daha önce konuşmuş muyduk?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "Bu kararı kim verdi?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "neden Redis'ten vazgectik?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "holdout"
+ },
+ {
+  "q": "#42'deki kararları özetle",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "Redis'ten vazgeçtiğimizi hatırlat",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "Kafka planını neden bıraktık?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "holdout"
+ },
+ {
+  "q": "ne konuşmuştuk bu logging kararı hakkında",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "Geçen hafta anlaştığımız migration sırası ne?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "Kodda kullanılan logging seviyesi için bir kural var mı?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "holdout"
+ },
+ {
+  "q": "hangi commit ekledi apply_late_fee'yi?",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "IndexWriter'ı hangi commit ile eklendi?",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "Bu özelliği hangi commit implemente etti?",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "holdout"
+ },
+ {
+  "q": "hangi commit parse_config'i değiştirdi?",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "UserService hangi commit'te yazıldı?",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "hangi commit sort_segments'i ekledi",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "holdout"
+ },
+ {
+  "q": "Retry bütçesi hangi commit'te eklendi?",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "parse_config hangi commit ile geldi?",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "Bu değişikliği hangi commit getirdi?",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "holdout"
+ },
+ {
+  "q": "#123 ne durumda?",
+  "class": "task",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "bu #89 işi kapandı mı?",
+  "class": "task",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "ZC-42 kapsamında testleri ekle",
+  "class": "task",
+  "intent": "edit",
+  "set": "holdout"
+ },
+ {
+  "q": "ABC-17 için parse_config'i düzelt",
+  "class": "task",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "#77 için testleri ekle",
+  "class": "task",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "#15 numaralı iş ne aşamada?",
+  "class": "task",
+  "intent": "memory",
+  "set": "holdout"
+ },
+ {
+  "q": "ZC-9 hakkında ne düşünüyorsun?",
+  "class": "task",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "#310 özetini çıkar",
+  "class": "task",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "ABC-88 kaç gün açık kaldı?",
+  "class": "task",
+  "intent": "memory",
+  "set": "holdout"
+ },
+ {
+  "q": "parse_config içinde timeout nasıl hesaplanıyor?",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "Bu fonksiyon nasıl çalışıyor?",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "bu neden çalışmıyor",
+  "class": "search",
+  "intent": "explain",
+  "set": "holdout"
+ },
+ {
+  "q": "bu neden çalışmıyor: apply_late_fee boş dönüyor",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "IndexWriter::commit neden flush etmiyor?",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "Log dosyası neden boş?",
+  "class": "search",
+  "intent": "explain",
+  "set": "holdout"
+ },
+ {
+  "q": "kararlı sürüm için cache hangi TTL'i kullanıyor?",
+  "class": "search",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "UserService kararlı mı çalışıyor?",
+  "class": "search",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "Bu kodda hata nerede?",
+  "class": "search",
+  "intent": "locate",
+  "set": "holdout"
+ },
+ {
+  "q": "Bunu düzeltmek için hangi dosyayı değiştirmeliyim?",
+  "class": "search",
+  "intent": "locate",
+  "set": "dev"
+ },
+ {
+  "q": "Hangi dosyayı değiştirmem lazım?",
+  "class": "search",
+  "intent": "locate",
+  "set": "dev"
+ },
+ {
+  "q": "Hangi dosyada değişiklik yapmam lazım?",
+  "class": "search",
+  "intent": "locate",
+  "set": "holdout"
+ },
+ {
+  "q": "Nereyi değiştirmeli ki bu çalışsın?",
+  "class": "search",
+  "intent": "locate",
+  "set": "dev"
+ },
+ {
+  "q": "Bu defined olarak geliyor, parse_config nasıl okuyor?",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "Test dosyalarında defined edilmemiş alanlar var mı?",
+  "class": "search",
+  "intent": "general",
+  "set": "holdout"
+ },
+ {
+  "q": "Bu fonksiyon ne işe yarıyor?",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "Ne yapıyor apply_late_fee?",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "parse_config içinde ne hesaplanıyor?",
+  "class": "search",
+  "intent": "explain",
+  "set": "holdout"
+ },
+ {
+  "q": "Bu fonksiyon ekleme sırasında panic atıyor, neden olabilir?",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "Bu test silme işlemini nasıl yapıyor?",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "değiştirme sırasında cache neden bozuluyor?",
+  "class": "search",
+  "intent": "explain",
+  "set": "holdout"
+ },
+ {
+  "q": "Tokenizer nasil calisiyor?",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "bu kod nasil calisiyor",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "Bu sınıfta lock nasıl alınıyor?",
+  "class": "search",
+  "intent": "explain",
+  "set": "holdout"
+ },
+ {
+  "q": "devam et",
+  "class": "search",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "süper, devam et",
+  "class": "search",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "bunu özetle",
+  "class": "search",
+  "intent": "general",
+  "set": "holdout"
+ },
+ {
+  "q": "Bu fonksiyon hangi dosyada?",
+  "class": "search",
+  "intent": "locate",
+  "set": "dev"
+ },
+ {
+  "q": "apply_late_fee hata fırlatıyor mu?",
+  "class": "search",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "IndexWriter neden bu kadar yavaş",
+  "class": "search",
+  "intent": "explain",
+  "set": "holdout"
+ },
+ {
+  "q": "apply_late_fee'ye bir parametre ekle",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "IndexWriter'a yeni bir metot ekle",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "parse_config içindeki timeout değerini 30 yap ve değiştir",
+  "class": "search",
+  "intent": "edit",
+  "set": "holdout"
+ },
+ {
+  "q": "UserService'te find_by_email fonksiyonunu sil",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "retry_budget sabitini kaldır",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "load_config'in adını load_settings olarak güncelle",
+  "class": "search",
+  "intent": "edit",
+  "set": "holdout"
+ },
+ {
+  "q": "sort_segments'i yeni modüle taşı",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "bu fonksiyondaki hatayı düzelt",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "Parser struct'ını Tokenizer olarak yeniden adlandır",
+  "class": "search",
+  "intent": "edit",
+  "set": "holdout"
+ },
+ {
+  "q": "parse_config'i refactor et",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "Her iki dosyada da kullanılan helper'ı yaz",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "IndexWriter için bir test oluştur",
+  "class": "search",
+  "intent": "edit",
+  "set": "holdout"
+ },
+ {
+  "q": "Hata mesajını değiştirin",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "apply_late_fee'ye gecikme limiti ekleyin",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "parse_config'deki timeout'u degistir",
+  "class": "search",
+  "intent": "edit",
+  "set": "holdout"
+ },
+ {
+  "q": "parse_config içindeki kodu düzeltebilir misin?",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "IndexWriter::commit'ten segment yazmaya kadar akışı göster",
+  "class": "search",
+  "intent": "trace",
+  "set": "dev"
+ },
+ {
+  "q": "apply_late_fee çağrısının akışını çıkar",
+  "class": "search",
+  "intent": "trace",
+  "set": "holdout"
+ },
+ {
+  "q": "istek UserService'ten veritabanına nasıl ilerliyor?",
+  "class": "search",
+  "intent": "trace",
+  "set": "dev"
+ },
+ {
+  "q": "Bir istek Router::dispatch'ten Handler::run'a kadar nasıl ilerliyor?",
+  "class": "search",
+  "intent": "trace",
+  "set": "dev"
+ },
+ {
+  "q": "parse_config'den load'a kadar olan akış nedir?",
+  "class": "search",
+  "intent": "trace",
+  "set": "holdout"
+ },
+ {
+  "q": "trace parse_config ve ardından çağrılan fonksiyonlar",
+  "class": "search",
+  "intent": "trace",
+  "set": "dev"
+ },
+ {
+  "q": "Güncelleme akışını trace et",
+  "class": "search",
+  "intent": "trace",
+  "set": "dev"
+ },
+ {
+  "q": "Ödeme sürecinin akışını anlat",
+  "class": "search",
+  "intent": "trace",
+  "set": "holdout"
+ },
+ {
+  "q": "Where is apply_late_fee defined?",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "What is the definition of IndexWriter?",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "where is UserService declared?",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "holdout"
+ },
+ {
+  "q": "Where is parse_config defined in this repo?",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "Show me the definition of Bm25Weight",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "Where is the RetryPolicy struct declared?",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "holdout"
+ },
+ {
+  "q": "Where is the Cache trait defined?",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "What's the definition of sort_segments?",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "Who calls apply_late_fee?",
+  "class": "callers",
+  "intent": "general",
+  "set": "holdout"
+ },
+ {
+  "q": "callers of parse_config in the scheduler module",
+  "class": "callers",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "where is IndexWriter::commit used?",
+  "class": "callers",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "who uses UserService.find_by_id?",
+  "class": "callers",
+  "intent": "general",
+  "set": "holdout"
+ },
+ {
+  "q": "which functions reference retry_budget?",
+  "class": "callers",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "Who calls the apply_late_fee function from the billing job?",
+  "class": "callers",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "apply_late_fee's callers, please",
+  "class": "callers",
+  "intent": "general",
+  "set": "holdout"
+ },
+ {
+  "q": "Where is parse_config used across the crates?",
+  "class": "callers",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "who call apply_late_fee in the worker",
+  "class": "callers",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "where is UserService referenced from?",
+  "class": "callers",
+  "intent": "general",
+  "set": "holdout"
+ },
+ {
+  "q": "Who calls sort_segments? I need the call sites",
+  "class": "callers",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "Which code calls Bm25Weight::score?",
+  "class": "callers",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "What did we decide about the merge policy?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "holdout"
+ },
+ {
+  "q": "Did we ever agree on the retry count?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "what did i ask yesterday about the migrations",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "Have we rejected the Redis cache before?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "holdout"
+ },
+ {
+  "q": "Remind me why we chose SQLite over Postgres",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "What rules did the user set for commit messages?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "Give me the timeline of the auth refactor",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "holdout"
+ },
+ {
+  "q": "history of the billing module decisions",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "Did we agree to drop the legacy API?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "What was decided in the last planning chat?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "holdout"
+ },
+ {
+  "q": "What did we do about the flaky test?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "Which rule did we agree for log levels?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "why did we drop the Kafka plan?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "holdout"
+ },
+ {
+  "q": "Any rule about naming migrations?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "What did the user want for the export format?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "Did the user say which DB to use?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "holdout"
+ },
+ {
+  "q": "We agreed on JSON output, right?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "Summarize the decision log for ZC-21",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "Which commit introduced apply_late_fee?",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "holdout"
+ },
+ {
+  "q": "which commit implemented the retry budget?",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "Which commit added the IndexWriter lock?",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "The merge policy was implemented in which commit?",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "holdout"
+ },
+ {
+  "q": "Is parse_config implemented yet?",
+  "class": "search",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "The Parser class implements Drop, how does cleanup run?",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "Which commit implements the changelog parser?",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "holdout"
+ },
+ {
+  "q": "Which commit do I blame for the lock bug?",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "What is the status of #245?",
+  "class": "task",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "Fix the parser bug from ABC-9",
+  "class": "task",
+  "intent": "edit",
+  "set": "holdout"
+ },
+ {
+  "q": "Summarize issue #310 for me",
+  "class": "task",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "Is #512 still open?",
+  "class": "task",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "Add tests for #101",
+  "class": "task",
+  "intent": "edit",
+  "set": "holdout"
+ },
+ {
+  "q": "Rename parse_config to load_config for ZC-14",
+  "class": "task",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "Close ticket #64 when the migration is merged",
+  "class": "task",
+  "intent": "memory",
+  "set": "dev"
+ },
+ {
+  "q": "Let's discuss #220 later",
+  "class": "task",
+  "intent": "memory",
+  "set": "holdout"
+ },
+ {
+  "q": "Implement the cache TTL from ZC-30",
+  "class": "task",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "Explain how garbage collection works in this index",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "How does the merge policy pick segments?",
+  "class": "search",
+  "intent": "explain",
+  "set": "holdout"
+ },
+ {
+  "q": "How is the score normalized in Bm25Weight?",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "How do the retry budgets reset each hour?",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "What does apply_late_fee do with negative balances?",
+  "class": "search",
+  "intent": "explain",
+  "set": "holdout"
+ },
+ {
+  "q": "why does IndexWriter::commit block the thread?",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "What is the purpose of the read window?",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "Explain the lock file strategy",
+  "class": "search",
+  "intent": "explain",
+  "set": "holdout"
+ },
+ {
+  "q": "Can you explain why UserService caches tokens?",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "What does the pool do when the queue is full?",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "How does the tokenizer split camelCase names?",
+  "class": "search",
+  "intent": "explain",
+  "set": "holdout"
+ },
+ {
+  "q": "why is the parser slow on big files?",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "Why does the build take ten minutes?",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "The config values are defined in TOML, how does the loader read them?",
+  "class": "search",
+  "intent": "explain",
+  "set": "holdout"
+ },
+ {
+  "q": "The schema is defined in JSON, so why does the loader fail?",
+  "class": "search",
+  "intent": "explain",
+  "set": "dev"
+ },
+ {
+  "q": "Is parse_config thread safe?",
+  "class": "search",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "Thanks, that works now",
+  "class": "search",
+  "intent": "general",
+  "set": "holdout"
+ },
+ {
+  "q": "Please continue with the next step",
+  "class": "search",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "List all public functions in zcie-query",
+  "class": "search",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "Tests are defined per crate, what about the integration folder?",
+  "class": "search",
+  "intent": "general",
+  "set": "holdout"
+ },
+ {
+  "q": "What's the default timeout in parse_config?",
+  "class": "search",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "The setting should be set to false in prod",
+  "class": "search",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "Please make apply_late_fee async",
+  "class": "search",
+  "intent": "edit",
+  "set": "holdout"
+ },
+ {
+  "q": "Can you add a test for parse_config?",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "Could you fix the crash in IndexWriter",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "Go ahead and delete the old export code",
+  "class": "search",
+  "intent": "edit",
+  "set": "holdout"
+ },
+ {
+  "q": "Set the default timeout to 30 seconds",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "Make apply_late_fee return a Result",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "Change the default page size to 50",
+  "class": "search",
+  "intent": "edit",
+  "set": "holdout"
+ },
+ {
+  "q": "Update the retry budget to 5",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "remove the unused flag from UserService",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "Move the cache warmup into the startup hook",
+  "class": "search",
+  "intent": "edit",
+  "set": "holdout"
+ },
+ {
+  "q": "delete the legacy parser module",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "Implement a dry-run flag for the importer",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "Replace the HashMap in Cache with BTreeMap",
+  "class": "search",
+  "intent": "edit",
+  "set": "holdout"
+ },
+ {
+  "q": "Extract the parsing loop into its own function",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "Apply the retry fix to the worker",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "Fix the off-by-one in parse_config",
+  "class": "search",
+  "intent": "edit",
+  "set": "holdout"
+ },
+ {
+  "q": "Add a public method num_threads to IndexWriter",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "Refactor apply_late_fee into smaller functions",
+  "class": "search",
+  "intent": "edit",
+  "set": "dev"
+ },
+ {
+  "q": "Which file must I change so that the late fee is capped?",
+  "class": "search",
+  "intent": "locate",
+  "set": "holdout"
+ },
+ {
+  "q": "Which file should I change to add retry to UserService?",
+  "class": "search",
+  "intent": "locate",
+  "set": "dev"
+ },
+ {
+  "q": "Where should I change the timeout default?",
+  "class": "search",
+  "intent": "locate",
+  "set": "dev"
+ },
+ {
+  "q": "Where do I change the CSV delimiter?",
+  "class": "search",
+  "intent": "locate",
+  "set": "holdout"
+ },
+ {
+  "q": "What file do I need to change to rename parse_config?",
+  "class": "search",
+  "intent": "locate",
+  "set": "dev"
+ },
+ {
+  "q": "Which files must I change to add the new index field?",
+  "class": "search",
+  "intent": "locate",
+  "set": "dev"
+ },
+ {
+  "q": "where do i change the log level",
+  "class": "search",
+  "intent": "locate",
+  "set": "holdout"
+ },
+ {
+  "q": "Where is the retry config loaded?",
+  "class": "search",
+  "intent": "locate",
+  "set": "dev"
+ },
+ {
+  "q": "Where is the code for the invoice PDF generated?",
+  "class": "search",
+  "intent": "locate",
+  "set": "dev"
+ },
+ {
+  "q": "Trace a document from IndexWriter::add_document to a segment",
+  "class": "search",
+  "intent": "trace",
+  "set": "holdout"
+ },
+ {
+  "q": "trace the call path of apply_late_fee",
+  "class": "search",
+  "intent": "trace",
+  "set": "dev"
+ },
+ {
+  "q": "Show the call chain from handle_request to save_invoice",
+  "class": "search",
+  "intent": "trace",
+  "set": "dev"
+ },
+ {
+  "q": "what is the call path from main to parse_config",
+  "class": "search",
+  "intent": "trace",
+  "set": "holdout"
+ },
+ {
+  "q": "Walk me through the flow from UserService::create to the DB writer",
+  "class": "search",
+  "intent": "trace",
+  "set": "dev"
+ },
+ {
+  "q": "How does a request flow from Router::dispatch to Handler::run?",
+  "class": "search",
+  "intent": "trace",
+  "set": "dev"
+ },
+ {
+  "q": "trace parse_config through the loader",
+  "class": "search",
+  "intent": "trace",
+  "set": "holdout"
+ },
+ {
+  "q": "Trace the path of a commit through the indexer",
+  "class": "search",
+  "intent": "trace",
+  "set": "dev"
+ },
+ {
+  "q": "Follow the flow from upload to the S3 writer",
+  "class": "search",
+  "intent": "trace",
+  "set": "dev"
+ },
+ {
+  "q": "Which steps run from scheduler::tick to the billing worker?",
+  "class": "search",
+  "intent": "trace",
+  "set": "holdout"
+ },
+ {
+  "q": "sym:apply_late_fee",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "file:src/billing/late_fee.rs",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "ev:9f3c2a1",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "holdout"
+ },
+ {
+  "q": "mem:01HZX8K3V9Q2M7N5R4T6W1Y8ZA",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "commit:2836646",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "sym:IndexWriter::commit",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "holdout"
+ },
+ {
+  "q": "file:crates/zcie-query/src/classify.rs",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "sym:parse_config",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "ev:abc123",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "holdout"
+ },
+ {
+  "q": "commit:c8bd6f0",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "sym:UserService",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "file:Cargo.toml",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "holdout"
+ },
+ {
+  "q": "mem:retry-policy-2",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "sym:Bm25Weight",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "dev"
+ },
+ {
+  "q": "task:01HZX8K3V9Q2M7N5R4T6W1Y8ZA",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "holdout"
+ }
+]

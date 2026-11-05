@@ -68,6 +68,8 @@ pub struct QueryEngine {
     pub(crate) ingest: Arc<Ingest>,
     pub(crate) config: QueryConfig,
     pub(crate) vectors: Option<Arc<zcie_vector::Vectors>>,
+    /// Language servers of "who calls" answers (ADR-033); `None` keeps the heuristic only.
+    pub(crate) lsp: Option<Arc<zcie_lsp::Pool>>,
     /// File graphs of the repository map, per workspace, with the search watermark of their build.
     pub(crate) repo_graphs: std::sync::Mutex<HashMap<String, (u64, Arc<crate::repomap::RepoGraph>)>>,
 }
@@ -75,12 +77,18 @@ pub struct QueryEngine {
 impl QueryEngine {
     /// Makes the read path.
     pub fn new(store: Arc<Store>, objects: Arc<ObjectStore>, search: Arc<SearchIndex>, cache: Arc<L0Cache>, ingest: Arc<Ingest>, config: QueryConfig) -> Self {
-        Self { store, objects, search, cache, ingest, config, vectors: None, repo_graphs: std::sync::Mutex::new(HashMap::new()) }
+        Self { store, objects, search, cache, ingest, config, vectors: None, lsp: None, repo_graphs: std::sync::Mutex::new(HashMap::new()) }
     }
 
     /// Adds local vector search to the search route (ADR-011).
     pub fn with_vectors(mut self, vectors: Option<Arc<zcie_vector::Vectors>>) -> Self {
         self.vectors = vectors;
+        self
+    }
+
+    /// Adds the language-server pool of "who calls" answers (ADR-033).
+    pub fn with_lsp(mut self, lsp: Option<Arc<zcie_lsp::Pool>>) -> Self {
+        self.lsp = lsp;
         self
     }
 
@@ -116,9 +124,13 @@ impl QueryEngine {
             return Ok(card);
         }
         let (ranked, note, overlay_hits) = self.ranked(ctx, class, &question)?;
+        // A "who calls" answer without the language server may improve later: it is not cached.
+        let pending = matches!(class, QueryClass::Callers) && self.lsp.is_some() && note.as_deref() != Some(crate::routes::LSP_VERIFIED_NOTE);
         let parts = (class, note, request.question.as_str());
         let response = self.compose(ctx, parts, ranked, watermarks, overlay_hits, budget, max_results);
-        self.store_in_cache(key, ctx, &response);
+        if !pending {
+            self.store_in_cache(key, ctx, &response);
+        }
         Ok(response)
     }
 
@@ -188,6 +200,7 @@ impl QueryEngine {
             capsule: None,
             intent: None,
             evidence: Vec::new(),
+            impact: Vec::new(),
             trace: None,
         };
         let (base, items) = crate::capsule_rules::apply(base, items, question, self.config.context);
@@ -288,7 +301,7 @@ pub(crate) fn rank(candidates: Vec<Candidate>, class: QueryClass, question: &str
     let mut best: HashMap<String, Candidate> = HashMap::new();
     for mut candidate in candidates {
         // A corrected, disputed or retracted record keeps its own status, whatever path found it (ADR-020).
-        let own = candidate.loaded.item.status.clone().filter(|s| matches!(s.as_str(), "superseded" | "disputed" | "retracted"));
+        let own = candidate.loaded.item.status.clone().filter(|s| matches!(s.as_str(), "superseded" | "disputed" | "retracted" | crate::items::POSSIBLY_STALE));
         let status = own.as_deref().or(candidate.path_status.map(|s| s.name())).or(candidate.loaded.item.status.as_deref());
         let age_days = candidate.loaded.time.as_deref().and_then(parse_utc_seconds).map(|t| (now - t) as f32 / 86_400.0).unwrap_or(30.0);
         let coverage = crate::relevance::item_coverage(&terms, question, &candidate.loaded.item);

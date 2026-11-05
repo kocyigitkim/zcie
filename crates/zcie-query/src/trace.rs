@@ -41,6 +41,7 @@ impl QueryEngine {
         let mut response = self.answer(ctx, request)?;
         if request.cursor.is_none() {
             self.add_evidence(ctx, request, &mut response)?;
+            self.add_impact(ctx, &request.question, &mut response)?;
         }
         if request.explain && request.cursor.is_none() {
             response.trace = Some(self.trace(ctx, request, &response, elapsed_ms(started))?);

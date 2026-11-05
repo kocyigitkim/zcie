@@ -1,0 +1,722 @@
+[
+ {
+  "q": "sym:OrderQueue",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "mem:ShipmentRouter-retry-rule",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "commit:9e27b1f",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "ev:calc_vat-7733",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "authMiddleware nerede tanimli?",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "OrderQueue sinifinin tanimi nerede",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "render_tile fonksiyonu hangi dosyada tanimlanmis",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "ShipmentRouter struct'i nerede tanimlanmis, yolunu soyle",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "calc_vat tanimini goster",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "tenant_scope trait'i nerede?",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "PriceTable nerede tanimli",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "wher is ShipmentRouter defined?",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "where's the definition of calc_vat",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "which file defines OrderQueue",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "definition of authMiddleware, pls",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "where is render_tile defined",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "where is the struct PaymentLedger declared",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "show me where DiffCache is defined in the workspace",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "bu endpoint'i kim call ediyor",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "OrderQueue.push'u kim kullaniyor?",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "calc_vat nerelerden cagriliyor",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "render_tile'a referans veren yer var mi",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "authMiddleware hangi route'larda kullanilmis",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "ShipmentRouter::route'u cagiran tum noktalari listele",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "checkout akisinda calc_vat'tan once hangi fonksiyonlar calisiyor, cagri zincirini cikar",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen"
+ },
+ {
+  "q": "PaymentLedger.flush'u kim tetikliyor?",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "who calls ShipmentRouter.route",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "what calls calc_vat directly or indirectly",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "who uses OrderQueue in the worker crate",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "find all refrences to render_tile",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "trace the call chain from handle_webhook to calc_vat",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen"
+ },
+ {
+  "q": "is authMiddleware used anywhere besides the admin routes?",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "which handlers reference PriceTable?",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "geçen hafta OrderQueue için ne karar vermiştik",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "bu projede retry politikasını kim, ne zaman belirledi?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "konuşmada ShipmentRouter'ı neden silmeyi önermiştin, hatırlat",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "daha önce kullanıcı calc_vat için hangi kuralı koymuştu",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "önceki oturumda kararlaştırdığımız kural neydi, tekrar söyler misin?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "bu hafta yaptığımız değişiklikleri hatırlat",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "geçen sprintte price table hakkında ne demiştik",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "bu konuda daha önce ne dediğimi hatırlıyor musun",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "we decided earlier not to use the cache layer, why was that again?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "what did we decide about the OrderQueue retry limit last week",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "remind me what rule I gave you for tenant_scope",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "earlier you said render_tile should stay pure, what was the reasoning we agreed on",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "what did I tell you about the webhook format in our last chat?",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "history of our talk on the auth refactor, summarize the decisions",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "retry kontrolunu hangi commit ekledi",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "bu validasyon hangi commit'te eklendi?",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "PriceTable migrasyonunu hangi commit getirdi",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "tenant_scope'u kim, hangi degisiklikle yazdi",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "gecen ayki rate limit isini hangi commit yapti",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "su hata duzeltmesi hangi commit ile geldi, sha'sini bul",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "bu fonksiyon hangi commit'te silindi?",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "webhook imza dogrulamasini hangi commit'te yaptik",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "which commit added the retry guard in OrderQueue",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "what commit implemented the render_tile cache",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "which commit introduced the VAT rounding change",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "find the commit that implemented ShipmentRouter's fallback",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "the rate limiter got added in some commit, which one was it",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "which commit removed the legacy authMiddleware, I need the hash",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "ZC-905 ne durumda",
+  "class": "task",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "#317 hangi aşamada, kim üstlendi",
+  "class": "task",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "ZC-61 kapsamında calc_vat'ı düzelt",
+  "class": "task",
+  "intent": "edit",
+  "set": "unseen"
+ },
+ {
+  "q": "#402 için ne yapmıştık, özetle",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "ZC-17 gereksinimlerini bana açıkla",
+  "class": "task",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "#250 kapatılmış mı, bu iş tamam mı",
+  "class": "task",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "ZC-88 ile ilgili son durum neydi",
+  "class": "task",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "#73 için rate limiter'ı ekle",
+  "class": "task",
+  "intent": "edit",
+  "set": "unseen"
+ },
+ {
+  "q": "where are we on ZC-905",
+  "class": "task",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "ZC-44 status?",
+  "class": "task",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "fix ZC-44 in the OrderQueue worker",
+  "class": "task",
+  "intent": "edit",
+  "set": "unseen"
+ },
+ {
+  "q": "#226 what did we promise the client",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "add the missing tenant check for #312",
+  "class": "task",
+  "intent": "edit",
+  "set": "unseen"
+ },
+ {
+  "q": "summarize ZC-120 discussion so far",
+  "class": "task",
+  "intent": "memory",
+  "set": "unseen"
+ },
+ {
+  "q": "ShipmentRouter'in fallback mantigi nasil calisiyor?",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen"
+ },
+ {
+  "q": "render_tile neden kararli cikti veriyor?",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen"
+ },
+ {
+  "q": "retry dongusu neden sonsuza kadar donmuyor",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen"
+ },
+ {
+  "q": "eklenen testler neden kirildi?",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen"
+ },
+ {
+  "q": "bu hata sonrasi cache neden stale kaliyor",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen"
+ },
+ {
+  "q": "odeme onayi silindikten sonra ledger ne yapiyor?",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen"
+ },
+ {
+  "q": "Dosya yükleme akışını inceliyorum. Hangi dosyada ele alınıyor, değiştirmem gereken yer neresi?",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen"
+ },
+ {
+  "q": "CSV export kodu nerede, hangi modülde?",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen"
+ },
+ {
+  "q": "fiyat yuvarlama mantığını hangi dosya yönetiyor?",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen"
+ },
+ {
+  "q": "webhook imzasını kontrol eden kod nerede?",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen"
+ },
+ {
+  "q": "tenant bazlı filtreleme hangi katmanda yapılıyor, yerini söyle",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen"
+ },
+ {
+  "q": "rate limit kodu hangi modülde duruyor?",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen"
+ },
+ {
+  "q": "siparişe kargo ücreti hesabını ekle",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen"
+ },
+ {
+  "q": "PriceTable'daki yuvarlamayı iki ondalık basamağa değiştir",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen"
+ },
+ {
+  "q": "render_tile içindeki gereksiz clone'ları kaldır",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen"
+ },
+ {
+  "q": "authMiddleware'e istek başına log satırı ekle",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen"
+ },
+ {
+  "q": "OrderQueue'daki kilidi kaldır ve testi güncelle",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen"
+ },
+ {
+  "q": "Checkout tarafını okudum. Checkout isteğinden ödeme servisine kadar olan yolu adım adım çıkar.",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen"
+ },
+ {
+  "q": "A'dan B'ye: kuyruğa atılan bir mesaj worker'da nereye kadar gidiyor",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen"
+ },
+ {
+  "q": "upload akisi blob store'a nasil gidiyor, sirayla",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen"
+ },
+ {
+  "q": "devam et, kaldığın yerden",
+  "class": "search",
+  "intent": "general",
+  "set": "unseen"
+ },
+ {
+  "q": "Add a retry counter to the OrderQueue worker loop",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen"
+ },
+ {
+  "q": "rename calc_vat to compute_vat_amount everywhere in the crate",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen"
+ },
+ {
+  "q": "refactor the render_tile cache so it stops cloning the tile buffer",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen"
+ },
+ {
+  "q": "Remove the legacy path in ShipmentRouter, nothing uses it anymore",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen"
+ },
+ {
+  "q": "Change the default timeout in the config to 30 seconds",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen"
+ },
+ {
+  "q": "Fix the off-by-one in the pagination helper",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen"
+ },
+ {
+  "q": "Update authMiddleware so it reads the token from the cookie too",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen"
+ },
+ {
+  "q": "Replace the manual sleep in the poller with a tokio interval",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen"
+ },
+ {
+  "q": "which file do I need to change to add a new currency?",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen"
+ },
+ {
+  "q": "where is the code that handles webhook retries?",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen"
+ },
+ {
+  "q": "which module computes shipping weight limits?",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen"
+ },
+ {
+  "q": "where would I put a new validation rule for addresses?",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen"
+ },
+ {
+  "q": "I'm debugging a tenant leak. Where does the app decide which tenant a request belongs to?",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen"
+ },
+ {
+  "q": "in which crate is the tile cache eviction implemented?",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen"
+ },
+ {
+  "q": "trace how a checkout request reaches the payment gateway",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen"
+ },
+ {
+  "q": "walk me through the flow from the upload endpoint to blob storage",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen"
+ },
+ {
+  "q": "from the queue consumer to the ledger write, what's the path?",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen"
+ },
+ {
+  "q": "path from the API handler to the warehouse service, step by step",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen"
+ },
+ {
+  "q": "follow the data path from the CSV import to the database insert",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen"
+ },
+ {
+  "q": "the request goes from middleware to handler, show the sequence",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen"
+ },
+ {
+  "q": "why does the render_tile output change between runs?",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen"
+ },
+ {
+  "q": "Yesterday I refactored a lot. Why did the tests I added yesterday break?",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen"
+ },
+ {
+  "q": "how does the retry backoff work?",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen"
+ },
+ {
+  "q": "is the ShipmentRouter stable across restarts, and why?",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen"
+ }
+]

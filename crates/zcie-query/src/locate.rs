@@ -72,8 +72,8 @@ pub fn request_text(question: &str) -> String {
 
 /// True for a change request ("which file must I change so that …").
 pub fn asks_for_location(question: &str) -> bool {
-    let lower = question.to_lowercase();
-    CHANGE_PHRASES.iter().any(|p| lower.contains(p))
+    let lower = crate::keywords::fold(question);
+    CHANGE_PHRASES.iter().any(|p| lower.contains(&crate::keywords::fold(p)))
 }
 
 /// Score of a symbol: the share of the question terms in its name and signature.

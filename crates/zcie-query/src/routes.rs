@@ -1,12 +1,13 @@
 //! Retrieval routes (`docs/09-query-and-context.md` section 4).
 
 use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 
 use zcie_graph::{Direction, TraverseOptions};
 use zcie_memory::extraction::tier_a::find_matches;
 use zcie_search::{IndexName, SearchHit, SearchQuery};
 use zcie_store::Batch;
-use zcie_types::{EdgeStatus, QueryClass, Relation};
+use zcie_types::{EdgeStatus, FileRecord, QueryClass, Relation};
 
 use crate::error::Result;
 use crate::items::{Loaded, load_ref};
@@ -53,6 +54,10 @@ const EXPANSION_PARENTS: usize = 5;
 const NEIGHBOR_FACTOR: f32 = 0.7;
 /// Symbols per changed file in an implementation path.
 const SYMBOLS_PER_FILE: usize = 3;
+/// Note of a "who calls" answer that the language server verified (ADR-033).
+pub(crate) const LSP_VERIFIED_NOTE: &str = "callers verified by the language server";
+/// Score of a caller that the language server reports.
+const LSP_SCORE: f32 = 0.95;
 
 impl QueryEngine {
     /// Loads a ref if it exists and the scope check permits it.
@@ -101,26 +106,82 @@ impl QueryEngine {
         Ok((out, None))
     }
 
-    /// "Who calls X": the symbols that contain a resolved call of X (D-071), verified ones first.
+    /// "Who calls X": the language server's references when it answers (ADR-033), then the symbols
+    /// that contain a resolved call of X (D-071), verified ones first.
     fn route_callers(&self, ctx: &QueryContext, question: &str) -> Result<(Vec<Candidate>, Option<String>)> {
         let (symbols, _) = self.route_symbol(ctx, question)?;
         let t = &self.config.tenant;
-        let mut out = Vec::new();
+        let mut targets = Vec::new();
         for found in &symbols {
             let Some(id) = found.loaded.item.entity_ref.strip_prefix("sym:") else { continue };
-            let Some(target) = self.store.get::<zcie_types::SymbolRecord>(zcie_store::Cf::Entities, &zcie_store::layout::entity(t, "sym", id))? else { continue };
-            for caller in self.callers_of(ctx, &target, self.config.max_results * 4)? {
-                let enclosing = zcie_symbols::file_symbols(&self.store, t, &caller.file_id)?
-                    .into_iter()
-                    .filter(|s| s.symbol_id != target.symbol_id && (s.span[0]..=s.span[1]).contains(&caller.line))
-                    .min_by_key(|s| s.span[1] - s.span[0]);
-                let entity_ref = enclosing.map_or_else(|| format!("file:{}", caller.file_id), |s| format!("sym:{}", s.symbol_id));
+            targets.extend(self.store.get::<zcie_types::SymbolRecord>(zcie_store::Cf::Entities, &zcie_store::layout::entity(t, "sym", id))?);
+        }
+        let mut out = Vec::new();
+        for target in &targets {
+            out.extend(self.lsp_callers(ctx, target)?);
+        }
+        let by_server = !out.is_empty();
+        let seen: HashSet<String> = out.iter().map(|c| c.loaded.item.entity_ref.clone()).collect();
+        for target in &targets {
+            for caller in self.callers_of(ctx, target, self.config.max_results * 4)? {
+                let entity_ref = self.enclosing_ref(target, &caller.file_id, caller.line)?;
+                if seen.contains(&entity_ref) {
+                    continue;
+                }
                 let score = if caller.status == EdgeStatus::Verified { 0.9 } else { 0.6 };
                 out.extend(self.candidate(ctx, &entity_ref, score, Some(caller.status))?);
             }
         }
-        let note = out.is_empty().then(|| "no resolved call of this symbol".to_string());
+        let note = if by_server {
+            Some(LSP_VERIFIED_NOTE.to_string())
+        } else {
+            out.is_empty().then(|| "no resolved call of this symbol".to_string())
+        };
         Ok((out, note))
+    }
+
+    /// The references of a Rust or TypeScript symbol from its language server, as verified
+    /// candidates. Empty when the server is off, not ready, or the symbol cannot be placed.
+    fn lsp_callers(&self, ctx: &QueryContext, target: &zcie_types::SymbolRecord) -> Result<Vec<Candidate>> {
+        let (Some(pool), Some(worktree)) = (&self.lsp, target.scope.worktree_id.as_ref()) else { return Ok(Vec::new()) };
+        let t = &self.config.tenant;
+        let Some(root) = self.worktree_root(Some(worktree)) else { return Ok(Vec::new()) };
+        let root = std::fs::canonicalize(&root).unwrap_or_else(|_| PathBuf::from(root));
+        let Some(file) = self.store.get::<FileRecord>(zcie_store::Cf::Entities, &zcie_store::layout::entity(t, "file", target.file_id.as_str()))? else {
+            return Ok(Vec::new());
+        };
+        let Some(text) = self.file_text(&root, &file) else { return Ok(Vec::new()) };
+        let Some((line, column)) = name_position(&text, target) else { return Ok(Vec::new()) };
+        let Some(locations) = pool.references(&root, &root.join(&target.path), &text, line, column) else { return Ok(Vec::new()) };
+        let mut out = Vec::new();
+        for location in locations {
+            let Some(relative) = location.path.strip_prefix(&root).ok().and_then(|p| p.to_str()) else { continue };
+            let key = zcie_store::layout::path(t, worktree, &relative.replace('\\', "/"));
+            let Some(id) = self.store.get::<zcie_store::values::FileIdValue>(zcie_store::Cf::Lookup, &key)? else { continue };
+            let entity_ref = self.enclosing_ref(target, &id.file_id, location.line)?;
+            out.extend(self.candidate(ctx, &entity_ref, LSP_SCORE, Some(EdgeStatus::Verified))?);
+        }
+        Ok(out)
+    }
+
+    /// The stored text of a file. A file without a stored copy is read from the project folder:
+    /// the one read of a project file in a query, because the language server needs the text the
+    /// positions were taken from. The disk copy must still have the indexed hash.
+    fn file_text(&self, root: &Path, file: &FileRecord) -> Option<String> {
+        if let Ok(text) = self.objects.get_text(&file.content_hash) {
+            return Some(text);
+        }
+        let bytes = std::fs::read(root.join(&file.path)).ok()?;
+        (zcie_store::ObjectStore::hash(&bytes) == file.content_hash).then(|| String::from_utf8(bytes).ok()).flatten()
+    }
+
+    /// The symbol that contains `line` of a file (the smallest one), or the file itself.
+    fn enclosing_ref(&self, target: &zcie_types::SymbolRecord, file_id: &str, line: u32) -> Result<String> {
+        let enclosing = zcie_symbols::file_symbols(&self.store, &self.config.tenant, file_id)?
+            .into_iter()
+            .filter(|s| s.symbol_id != target.symbol_id && (s.span[0]..=s.span[1]).contains(&line))
+            .min_by_key(|s| s.span[1] - s.span[0]);
+        Ok(enclosing.map_or_else(|| format!("file:{file_id}"), |s| format!("sym:{}", s.symbol_id)))
     }
 
     /// Returns the tasks that the question names by ref.
@@ -275,6 +336,20 @@ impl QueryEngine {
         }
         Ok(out)
     }
+}
+
+/// 0-based line and character column of the name of `symbol` on its declaration line. The name
+/// must stand alone (not inside a longer word).
+fn name_position(text: &str, symbol: &zcie_types::SymbolRecord) -> Option<(u32, u32)> {
+    let line = symbol.span[0].checked_sub(1)?;
+    let text_line = text.lines().nth(line as usize)?;
+    let word = |c: char| c.is_alphanumeric() || c == '_';
+    let at = text_line.match_indices(symbol.name.as_str()).map(|(i, _)| i).find(|&i| {
+        let before = text_line[..i].chars().next_back().is_some_and(word);
+        let after = text_line[i + symbol.name.len()..].chars().next().is_some_and(word);
+        !before && !after
+    })?;
+    Some((line, text_line[..at].chars().count() as u32))
 }
 
 fn useful_neighbor(item: &zcie_graph::PathItem) -> bool {

@@ -13,6 +13,11 @@ const ALL_PROJECTS: [&str; 12] = [
     "all my projects", "all projects", "my projects", "which project", "which of my projects", "across projects",
     "every project", "tüm projeler", "bütün projeler", "projelerim", "hangi proje", "her proje",
 ];
+/// Folder names that are too common to name a project: a question with "repo" does not name a project "repo".
+const GENERIC_PROJECT_NAMES: [&str; 22] = [
+    "repo", "scratchpad", "src", "app", "apps", "project", "projects", "workspace", "code", "test", "tests", "tmp", "temp",
+    "web", "api", "server", "client", "docs", "demo", "main", "backend", "frontend",
+];
 
 impl Engine {
     /// Returns the projects that a query reads.
@@ -29,7 +34,8 @@ impl Engine {
         if request.cross_project {
             for project in self.permitted_projects(auth)? {
                 let named = names_project(&request.question, &project.name) || names_project(&request.question, &project.workspace_id);
-                if project.workspace_id != current.workspace_id && named {
+                // A project with the same name as the current one is a copy, not the project the question names.
+                if project.workspace_id != current.workspace_id && !project.name.eq_ignore_ascii_case(&current.name) && named {
                     targets.push(project);
                 }
             }
@@ -49,12 +55,15 @@ pub fn asks_all_projects(question: &str) -> bool {
 /// Returns true if the question names the project as a whole word (case-insensitive).
 pub fn names_project(question: &str, name: &str) -> bool {
     let name = name.to_lowercase();
-    if name.chars().count() < MIN_NAME_CHARS {
+    if name.chars().count() < MIN_NAME_CHARS || GENERIC_PROJECT_NAMES.contains(&name.as_str()) {
         return false;
     }
+    // A token with a slash is a path, and a path names a folder, not a project.
     question
         .to_lowercase()
-        .split(|c: char| !c.is_alphanumeric() && c != '-' && c != '_')
+        .split_whitespace()
+        .filter(|token| !token.contains(['/', '\\']))
+        .flat_map(|token| token.split(|c: char| !c.is_alphanumeric() && c != '-' && c != '_'))
         .any(|word| word == name || word.strip_suffix("'nin").or(word.strip_suffix("'da")).is_some_and(|w| w == name))
 }
 

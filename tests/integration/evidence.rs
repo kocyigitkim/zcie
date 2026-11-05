@@ -44,6 +44,7 @@ fn ts_21_03_benchmark_prompts_get_the_intent_of_their_task_class() {
     let expected = |id: &str| match id {
         "T2-locate-fn" | "T4-howto-delete" | "T7-explain-gc" => QueryIntent::Explain,
         "T14-trace-flow" => QueryIntent::Trace,
+        "T6-locate-stopword" => QueryIntent::Locate,
         "M1-name-ledger-db" | "M2-id-orbit-celery" | "M3-name-atlas-http" | "T11-memory-merge" | "T12-memory-rule" | "T13-memory-tr" | "L4-ledger-history" => QueryIntent::Memory,
         id if id.starts_with('E') => QueryIntent::Edit,
         id if id.starts_with('C') => QueryIntent::Locate,

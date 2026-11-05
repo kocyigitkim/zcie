@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use common::{T, edges_from, file_record, symbols};
 use zcie_store::Batch;
-use zcie_tests::{TestEngine, commit_all, fixture_repo};
+use zcie_tests::{TestEngine, commit_all, fixture_repo, git};
 use zcie_types::api::RegisterRepositoryResponse;
 use zcie_types::{EdgeStatus, EvidenceKind, ParserQuality, Relation, SymbolKind};
 
@@ -213,4 +213,36 @@ fn file_over_the_size_limit_is_hashed_in_a_stream_and_not_stored() {
     assert!(!record.content_stored);
     assert!(record.language.is_none(), "a file over the limit is not parsed");
     assert!(symbols(&engine, "big_function_marker").is_empty());
+}
+
+#[test]
+fn callers_of_a_rust_method_come_from_the_language_server_when_ready() {
+    if !zcie_lsp::server_available(std::path::Path::new("lib.rs")) {
+        eprintln!("skipped: rust-analyzer not found");
+        return;
+    }
+    let engine = TestEngine::start();
+    let repo = engine.dir.path().join("meter");
+    std::fs::create_dir_all(repo.join("src")).unwrap();
+    std::fs::write(repo.join("Cargo.toml"), "[package]\nname = \"meter\"\nversion = \"0.1.0\"\nedition = \"2021\"\n").unwrap();
+    std::fs::write(repo.join("src/lib.rs"), "pub mod a;\npub mod b;\n\npub struct Meter;\n\nimpl Meter {\n    pub fn tick(&self) {}\n}\n").unwrap();
+    let caller = "use crate::Meter;\n\npub fn run() {\n    let m = Meter;\n    m.tick();\n}\n";
+    std::fs::write(repo.join("src/a.rs"), caller).unwrap();
+    std::fs::write(repo.join("src/b.rs"), caller).unwrap();
+    git(&repo, &["init", "-q", "-b", "main"]);
+    commit_all(&repo, "initial");
+    engine.register(&repo);
+    engine.wait_idle();
+    let started = Instant::now();
+    loop {
+        let response = engine.query("who calls tick", 1200);
+        if response.note.as_deref() == Some("callers verified by the language server") {
+            let paths: Vec<String> = response.results.iter().filter_map(|r| r.path.clone()).collect();
+            assert!(paths.iter().any(|p| p == "src/a.rs") && paths.iter().any(|p| p == "src/b.rs"), "callers in a.rs and b.rs: {paths:?}");
+            break;
+        }
+        assert!(started.elapsed() < Duration::from_secs(60), "the language server did not answer in 60 s");
+        std::thread::sleep(Duration::from_secs(1));
+    }
+    eprintln!("language server callers answered after {:?}", started.elapsed());
 }

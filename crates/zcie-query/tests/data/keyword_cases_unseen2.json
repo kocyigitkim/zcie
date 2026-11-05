@@ -1,0 +1,902 @@
+[
+ {
+  "q": "sym:InvoiceMailer.send_receipt",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "commit:4c1ab07",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "file:src/gpx/parse_gpx.rs",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "mem:decision-0231",
+  "class": "exact_ref",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "TokenBucket repoda nerede tanimli",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "where's the definition of useCartStore, I keep losing it",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "show me the HeightmapBaker struct real quick",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "InvoiceMailer nerede tanimli",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "sync_inventory fonksiyonunun tanimi nerede",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "what's the exact signature of parse_gpx",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "hey where does the CartItem type get declared??",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "şu RetryPolicy enum'unun tanımını göster",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "I'm new to this codebase. Where is the definition of WebhookSigner? Thanks in advance",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "ben yeni geldim, ProductSearchIndex nerede tanimlanmis acaba",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "where is the PriceRule struct defined, the one with the tiered discounts",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "gpx tarafinda GpxPoint tanimi nerede",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "sync_inventory'yi kim cagiriyor ya",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "what code references useCartStore?",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "parse_gpx'i kim cagiriyor",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "şu on_checkout_done handler'ını kim invoke ediyor",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "which modules use TokenBucket::take",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "is HeightmapBaker::bake called anywhere outside the tests",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "InvoiceMailer.send kullanan yerler hangileri",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "would you mind listing every caller of flush_outbox, I need it for a review",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "rica etsem sync_inventory'yi referans eden yerleri listeler misin",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "so who actually invokes retry_with_backoff, the scheduler or the uploader?",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "parse_gpx fonksiyonu nerelerden cagrilmis",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "who references checkout_total outside its own module",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "gecen ay Kafka consumer'i neden birakmistik",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "geçen hafta retry süresini neden 30 saniyede sabitlediğimizi hatırlamıyorum",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "dun handler isimlendirme kuralini ne demistim",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "bu projede ORM kararını kim, ne zaman aldı",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "outbox retry limiti icin ne anlasmistik hatirlat",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "we said something about cache invalidation in the planning call, what was it",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "daha önce kullanıcı olarak ne demiştim, mail gönderimini nasıl kurmuştuk",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "daha once migrations klasorune hic dokunma demistin, neden boyleydi",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "geçen sprintte hangi istekleri onayladık, özetler misin",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "we chose sqlite over postgres for the local cache right, what was the reasoning",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "what did we decide about feature flags for the checkout rollout",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "bu kurala biz mi karar vermistik, yoksa ekip mi",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "gpx yukseklik yumusatmasini hangi commit getirdi",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "webhook imzalama özelliğini hangi commit getirdi",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "what commit added the rate limiter to the search endpoint",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "which change implemented the bulk import dedupe?",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "outbox retry mantığı hangi değişiklikle gelmiş",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "find the commit that implemented HeightmapBaker's tile cache",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "şu sepet indirimi işi hangi commit'te bitmiş",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "which PR implemented the new checkout retry, if any",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "bulk import dedupe'u hangi commit ile gelmiş",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "git history: which commit introduced the TokenBucket refill logic",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "hangi commit parse_gpx'in son halini getirdi",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "which merge brought in the currency rounding fix",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "what's the status history of ZC-204",
+  "class": "task",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "#317 ile ilgili ne konuştuk",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "ZC-88 is blocking me, what did we decide there",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "ZC-150 için yapılanlar neydi",
+  "class": "task",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "Rename ZC-19 handler to on_payment_settled",
+  "class": "task",
+  "intent": "edit",
+  "set": "unseen2"
+ },
+ {
+  "q": "#442 için invoice yuvarlamasını düzelt",
+  "class": "task",
+  "intent": "edit",
+  "set": "unseen2"
+ },
+ {
+  "q": "where is the code for ZC-77 located",
+  "class": "task",
+  "intent": "locate",
+  "set": "unseen2"
+ },
+ {
+  "q": "ZC-61 ile ilgili kodda nerede değişiklik yapmam gerekiyor",
+  "class": "task",
+  "intent": "locate",
+  "set": "unseen2"
+ },
+ {
+  "q": "#260 hangi hafta kapandı",
+  "class": "task",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "what happened with #305 last sprint, any blockers",
+  "class": "task",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "#128'i kapatmadan önce neler kontrol edilmişti",
+  "class": "task",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "how is task #275 going? anything new since monday",
+  "class": "task",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "Add retry to ZC-42 payment webhook",
+  "class": "task",
+  "intent": "edit",
+  "set": "unseen2"
+ },
+ {
+  "q": "remember what we said about the retry budget for the uploader",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "önceki toplantıda webhook için ne karar aldık",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "the rule about not logging tokens, who came up with that and when",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "geçen ay ekipte hangi kütüphaneyi bırakmıştık",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "which commit introduced the ledger rounding helper",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "hangi PR webhook retry işini getirdi",
+  "class": "implementation",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "#199 neden kapatıldı, bir hatırlatır mısın",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "what did the review on ZC-240 say",
+  "class": "task",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "ZC-266 ile ilgili konuşmalarda ne çıkmıştı",
+  "class": "task",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "#333 hakkında ekip ne demişti",
+  "class": "timeline",
+  "intent": "memory",
+  "set": "unseen2"
+ },
+ {
+  "q": "Replace the naive split in parse_gpx with a real CSV-style reader",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen2"
+ },
+ {
+  "q": "useCartStore'a persist ekle",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen2"
+ },
+ {
+  "q": "Simplify HeightmapBaker's normal computation and drop the unused branch",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen2"
+ },
+ {
+  "q": "sepet indirim hesabini integer uzerinden yeniden yaz",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen2"
+ },
+ {
+  "q": "is there a test covering the TokenBucket refill edge case",
+  "class": "search",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "is the sync_inventory job's latency acceptable under load",
+  "class": "search",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "Rust tarafında tekrar eden kod var mı, bir bak",
+  "class": "search",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "would it be ok to ship parse_gpx as is, we're close to the deadline",
+  "class": "search",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "what behaviour is defined for an empty cart in our spec",
+  "class": "search",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "bu modül kararlı mı, prod'a alabilir miyiz",
+  "class": "search",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "trace the call chain from the webhook handler to the ledger write",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen2"
+ },
+ {
+  "q": "webhook'tan ledger'a kadar cagri zincirini cikar",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen2"
+ },
+ {
+  "q": "trace the flow from checkout submit to the email send",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen2"
+ },
+ {
+  "q": "checkout'tan email gonderimine kadar akisi izle",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen2"
+ },
+ {
+  "q": "follow the path from the router to the DB write for an order",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen2"
+ },
+ {
+  "q": "parse_gpx'ten sonra hangi fonksiyonlar çalışıyor, sırasıyla",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen2"
+ },
+ {
+  "q": "walk the call chain from HeightmapBaker::bake to the tile writer",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen2"
+ },
+ {
+  "q": "from the cron tick to the inventory write, what's the path",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen2"
+ },
+ {
+  "q": "sync_inventory'den stok tablosuna kadar izi sür",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen2"
+ },
+ {
+  "q": "dispatch'ten mailer'a giden yolu göster",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen2"
+ },
+ {
+  "q": "trace InvoiceMailer.send from the queue consumer to the SMTP call",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen2"
+ },
+ {
+  "q": "what is the path from the upload endpoint to the blob store",
+  "class": "search",
+  "intent": "trace",
+  "set": "unseen2"
+ },
+ {
+  "q": "outbox poller satirlari nasil aliyor",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen2"
+ },
+ {
+  "q": "why does the retry loop sleep 2 seconds between attempts",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen2"
+ },
+ {
+  "q": "parse_gpx neden bu kadar yavaş çalışıyor",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen2"
+ },
+ {
+  "q": "gpx dosyasını nasıl parse ediyor, kısaca anlat",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen2"
+ },
+ {
+  "q": "how does the bulk import dedupe handle collisions",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen2"
+ },
+ {
+  "q": "logları neden iki kez yazıyor",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen2"
+ },
+ {
+  "q": "explain how the TokenBucket refill math works",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen2"
+ },
+ {
+  "q": "kuyruk tüketicisi mesajları nasıl işliyor, açıkla",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen2"
+ },
+ {
+  "q": "why is the checkout total computed twice on the server",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen2"
+ },
+ {
+  "q": "how is the poller implemented, cron or a worker",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen2"
+ },
+ {
+  "q": "sepet toplamı neden sunucuda iki kere hesaplanıyor",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen2"
+ },
+ {
+  "q": "bu fonksiyon retry'ı nasıl yönetiyor",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen2"
+ },
+ {
+  "q": "we use the old price field for used items, why does the filter skip them",
+  "class": "search",
+  "intent": "explain",
+  "set": "unseen2"
+ },
+ {
+  "q": "webhook imza kontrolunu hangi dosya yapiyor",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen2"
+ },
+ {
+  "q": "hangi dosyada sepet toplamı hesaplanıyor",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen2"
+ },
+ {
+  "q": "gpx yukseklik yumusatmasini yapan kod nerede",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen2"
+ },
+ {
+  "q": "nerede bulk import dedupe yapılıyor",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen2"
+ },
+ {
+  "q": "which module should I touch to change the outbox batch size",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen2"
+ },
+ {
+  "q": "where in the repo is the retry policy for the uploader",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen2"
+ },
+ {
+  "q": "stok senkronizasyonunu hangi dosya yapıyor",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen2"
+ },
+ {
+  "q": "hey which file has the currency rounding logic",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen2"
+ },
+ {
+  "q": "ödeme callback'ini işleyen kod nerede",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen2"
+ },
+ {
+  "q": "where does the app read the feature flag config",
+  "class": "search",
+  "intent": "locate",
+  "set": "unseen2"
+ },
+ {
+  "q": "Refactor the InvoiceMailer so the retry lives in a queue",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen2"
+ },
+ {
+  "q": "Rename parse_gpx to read_gpx everywhere",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen2"
+ },
+ {
+  "q": "sync_inventory içine retry ekle",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen2"
+ },
+ {
+  "q": "bu fonksiyonun timeout değerini 5 saniyeye düzelt",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen2"
+ },
+ {
+  "q": "Add a dedupe step to the bulk import before insert",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen2"
+ },
+ {
+  "q": "webhook handler'daki imza kontrolünü kaldır",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen2"
+ },
+ {
+  "q": "Make the TokenBucket refill atomic",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen2"
+ },
+ {
+  "q": "useCartStore'daki toplam hesabını yeniden yaz",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen2"
+ },
+ {
+  "q": "Split HeightmapBaker into two files, one for tiles and one for normals",
+  "class": "search",
+  "intent": "edit",
+  "set": "unseen2"
+ },
+ {
+  "q": "devam et",
+  "class": "search",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "thanks, that helped a lot",
+  "class": "search",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "can you write a haiku about rate limiting",
+  "class": "search",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "lint çıktısını özetler misin",
+  "class": "search",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "any good books on rust async",
+  "class": "search",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "selam, bugün nasılsın",
+  "class": "search",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "tamam, sonraki adıma geç",
+  "class": "search",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "bu yazıyı kısaca toparlar mısın",
+  "class": "search",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "could you give me a quick checklist for code review, nothing repo-specific",
+  "class": "search",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "tamam, şimdi ne yapalım",
+  "class": "search",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "standup saat kacta bu arada",
+  "class": "search",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "kahve molası verelim mi",
+  "class": "search",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "flaky testler hakkinda bir fikra anlat",
+  "class": "search",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "where's the GpxPoint struct declared in the crate",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "show the definition of TokenBucket::take",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "TokenBucket::take metodu nerede tanimli",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "where is the InvoiceMailer trait declared, can you point me to it",
+  "class": "symbol_definition",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "who calls the on_checkout_done handler in the tests",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "kim kullanıyor HeightmapBaker::bake'i",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "which places reference RetryPolicy::Exponential",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen2"
+ },
+ {
+  "q": "who calls flush_outbox from the cron side",
+  "class": "callers",
+  "intent": "general",
+  "set": "unseen2"
+ }
+]

@@ -3,7 +3,7 @@
 use zcie_store::{Cf, ObjectStore, Store, layout};
 use zcie_types::{
     Classification, CommitRecord, EventEnvelope, FileRecord, MemoryKind, MemoryRecord, MemoryStatus, Ref, ResultItem, Scope,
-    SymbolRecord, TaskRecord, truncate_chars,
+    SymbolRecord, TaskRecord, WorktreeRecord, truncate_chars,
 };
 
 use crate::error::Result;
@@ -66,7 +66,13 @@ pub fn load_ref(store: &Store, objects: &ObjectStore, tenant: &str, value: &str)
         "sym" => store.get::<SymbolRecord>(Cf::Entities, &key("sym"))?.map(|s| symbol_item(&s)),
         "file" => store.get::<FileRecord>(Cf::Entities, &key("file"))?.filter(|f| !f.deleted).map(|f| file_item(&f)),
         "mem" => match store.get::<MemoryRecord>(Cf::Entities, &key("mem"))? {
-            Some(m) if m.status != MemoryStatus::Retracted => Some(memory_with_source(store, objects, tenant, &m)?),
+            Some(m) if m.status != MemoryStatus::Retracted => {
+                let mut out = memory_with_source(store, objects, tenant, &m)?;
+                if matches!(m.status, MemoryStatus::Active | MemoryStatus::Verified) && names_changed_file(store, tenant, &m)? {
+                    out.item.status = Some(POSSIBLY_STALE.into());
+                }
+                Some(out)
+            }
             _ => None,
         },
         "task" => store.get::<TaskRecord>(Cf::Entities, &key("task"))?.map(|t| task_item(&t)),
@@ -77,6 +83,62 @@ pub fn load_ref(store: &Store, objects: &ObjectStore, tenant: &str, value: &str)
         },
         _ => None,
     })
+}
+
+/// Status of a memory record that names a file that changed after the record (ADR-028, D-092).
+pub const POSSIBLY_STALE: &str = "possibly_stale";
+
+/// Returns true if the text of the record names an indexed file of its workspace that was indexed
+/// again after the source event of the record. Computed at query time; never stored.
+fn names_changed_file(store: &Store, tenant: &str, record: &MemoryRecord) -> Result<bool> {
+    let paths = named_paths(&record.text);
+    if paths.is_empty() {
+        return Ok(false);
+    }
+    let Some(source) = record.source_event_ids.first() else { return Ok(false) };
+    let Some(event) = zcie_store::events::get_event_by_id(store, tenant, &source.0)? else { return Ok(false) };
+    let worktrees: Vec<String> = match &record.scope.worktree_id {
+        Some(id) => vec![id.clone()],
+        None => store
+            .prefix_scan::<WorktreeRecord>(Cf::Registry, &layout::registry_prefix(tenant, "worktree"), 10_000)?
+            .into_iter()
+            .filter(|(_, w)| w.workspace_id == record.scope.workspace_id)
+            .map(|(_, w)| w.worktree_id)
+            .collect(),
+    };
+    for worktree in &worktrees {
+        for path in &paths {
+            let Some(id) = store.get::<zcie_store::values::FileIdValue>(Cf::Lookup, &layout::path(tenant, worktree, path))? else { continue };
+            let file: Option<FileRecord> = store.get(Cf::Entities, &layout::entity(tenant, "file", &id.file_id))?;
+            // A watcher job takes the newest event seq when it is made, so a change after the event can have an equal seq;
+            // an unchanged file is never indexed again, so its seq stays lower.
+            if file.is_some_and(|f| !f.deleted && f.indexed_seq >= event.seq) {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
+}
+
+/// Returns the file paths that a text names (`src/a.rs`, `bm25.rs:9`), with each shorter form
+/// that drops leading folders (`tantivy/src/x.rs` also gives `src/x.rs`).
+fn named_paths(text: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for word in text.split_whitespace() {
+        let word = word.trim_matches(|c: char| matches!(c, '`' | '"' | '\'' | '(' | ')' | ',' | ';' | '.' | ':' | '[' | ']'));
+        let word = word.split(':').next().unwrap_or(word);
+        let Some((_, ext)) = word.rsplit_once('.') else { continue };
+        if ext.is_empty() || ext.len() > 5 || !ext.chars().all(|c| c.is_ascii_alphanumeric()) || word.contains("://") {
+            continue;
+        }
+        let mut rest = word;
+        loop {
+            out.push(rest.to_string());
+            let Some((_, tail)) = rest.split_once('/') else { break };
+            rest = tail;
+        }
+    }
+    out
 }
 
 /// Makes the item of a symbol.
@@ -209,5 +271,21 @@ pub(crate) fn source_factor(item: &ResultItem) -> f32 {
         ASSISTANT_FACTOR
     } else {
         1.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::named_paths;
+
+    #[test]
+    fn named_paths_of_a_memory_text() {
+        // ADR-028, D-092 (TS-28-03).
+        let paths = named_paths("K1 stays 1.2 (`tantivy/src/query/bm25.rs:9`). See https://x.io/a.html and README.md.");
+        assert!(paths.contains(&"tantivy/src/query/bm25.rs".to_string()));
+        assert!(paths.contains(&"src/query/bm25.rs".to_string()));
+        assert!(paths.contains(&"README.md".to_string()));
+        assert!(!paths.iter().any(|p| p.contains("x.io")));
+        assert!(named_paths("We use Postgres 16 for balances").is_empty());
     }
 }

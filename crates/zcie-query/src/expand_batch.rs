@@ -50,7 +50,7 @@ pub(crate) fn parse_range(value: &str) -> Option<(String, u32, u32)> {
 }
 
 /// True for a test file path.
-fn is_test_path(path: &str) -> bool {
+pub(crate) fn is_test_path(path: &str) -> bool {
     let lower = path.to_lowercase();
     lower.contains("test") || lower.contains("spec")
 }
@@ -118,7 +118,7 @@ impl QueryEngine {
     }
 
     /// Returns one line of a stored file, trimmed and cut to `RELATED_CHARS`.
-    fn line_of(&self, file_id: &str, line: u32) -> Result<Option<String>> {
+    pub(crate) fn line_of(&self, file_id: &str, line: u32) -> Result<Option<String>> {
         let Some(file) = self.store.get::<FileRecord>(Cf::Entities, &layout::entity(&self.config.tenant, "file", file_id))? else { return Ok(None) };
         let Ok(text) = self.objects.get_text(&file.content_hash) else { return Ok(None) };
         Ok(text.lines().nth(line as usize - 1).map(|l| truncate_chars(l.trim(), RELATED_CHARS)))

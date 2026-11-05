@@ -147,6 +147,9 @@ pub struct QueryResponse {
     /// Exact source slices for an edit, explain or trace prompt (ADR-019, D-069).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evidence: Vec<crate::evidence::EvidenceItem>,
+    /// Callers, tests and commits of the first symbol of an edit, explain or trace prompt (ADR-031).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub impact: Vec<String>,
     /// The query trace, only when the request has `explain: true` (ADR-019, D-066).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trace: Option<crate::trace::QueryTrace>,

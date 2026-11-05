@@ -215,6 +215,9 @@ fn ts_14_08_names_project_matches_whole_words_only() {
     assert!(names_project("look in tantivy-mono", "tantivy-mono"));
     assert!(!names_project("the atlases are big", "atlas"));
     assert!(!names_project("go to ab now", "ab"), "names shorter than 3 characters do not match");
+    assert!(!names_project("Read /Users/muhammet.kocyigit/Desktop/container-deploy/app.js", "muhammet"), "a folder in a path does not name a project");
+    assert!(!names_project("Cranna repo: fix the chat window", "repo"), "a generic folder name is not a project name");
+    assert!(names_project("muhammet projesinde ne var?", "muhammet"), "a plain word still names it");
 }
 
 fn started() -> (tempfile::TempDir, DaemonProcess) {

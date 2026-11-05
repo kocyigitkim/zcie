@@ -3,70 +3,129 @@
 
 use zcie_types::{QueryClass, QueryIntent, QueryMode};
 
-/// English verbs that start an instruction to change code.
-const EDIT_VERBS: [&str; 16] = [
-    "add", "rename", "change", "remove", "delete", "replace", "implement", "fix", "apply", "refactor", "update", "move",
-    "insert", "extract", "make", "set",
-];
-/// Turkish verb stems of an instruction to change code (the verb ends the sentence).
-const EDIT_STEMS_TR: [&str; 8] = ["ekle", "değiştir", "düzelt", "sil", "kaldır", "uygula", "güncelle", "taşı"];
-/// Phrases of an explanation question.
-const EXPLAIN_PHRASES: [&str; 12] = [
-    "explain", "how does", "how do ", "how is ", "what does", "why does", "nasıl çalış", "açıkla", "ne yapıyor", "ne hesaplıyor",
-    "neden çalış", "nasıl yapıyor",
-];
-/// Phrases of a question about earlier decisions or history.
-const MEMORY_PHRASES: [&str; 8] = ["why did ", "did we ", "we decided", "we agreed", "daha önce", "karar verdik", "karar vermiştik", "neden vazgeç"];
-
-/// Phrases of a flow question.
-const TRACE_PHRASES: [&str; 5] = ["trace ", "call chain", "call path", "akışı", "akışını"];
-
-/// True when the first word is an English edit verb, or the first sentence ends with a Turkish
-/// edit verb ("…'e bir metot ekle").
-fn asks_for_edit(lower: &str) -> bool {
-    let first = lower.split_whitespace().next().unwrap_or_default().trim_matches(|c: char| !c.is_alphanumeric());
-    if EDIT_VERBS.contains(&first) {
-        return true;
-    }
-    let sentence = lower.split(['.', '?', '!', '\n']).next().unwrap_or_default().trim();
-    EDIT_STEMS_TR.iter().any(|stem| sentence.split_whitespace().last().is_some_and(|w| w.starts_with(stem)))
-}
-
-/// True for a question about a flow: "trace …" or "from X to Y" with code names.
-fn asks_for_trace(lower: &str) -> bool {
-    TRACE_PHRASES.iter().any(|p| lower.contains(p)) || (lower.contains(" from ") && lower.contains(" to ") && lower.contains("::"))
-}
-
-/// True for a question about decisions or history. "Which commit implemented #89" is history;
-/// "in which file is X implemented" is a code location.
-fn asks_for_memory(lower: &str, class: QueryClass) -> bool {
-    let history = matches!(class, QueryClass::Timeline | QueryClass::Task)
-        || (class == QueryClass::Implementation && (lower.contains("commit") || lower.contains('#')));
-    history || MEMORY_PHRASES.iter().any(|p| lower.contains(p))
-}
+use crate::keyword_lists::*;
+use crate::keywords::{exact_hits, exact_word, fold, has_code_name, has_token, hits, matches, where_word};
 
 /// Selects the intent of a prompt.
 pub fn select_intent(question: &str, mode: QueryMode, class: QueryClass) -> QueryIntent {
-    let lower = question.to_lowercase();
     match mode {
         QueryMode::Locate => return QueryIntent::Locate,
         QueryMode::Memory | QueryMode::Timeline => return QueryIntent::Memory,
         QueryMode::Map => return QueryIntent::General,
         _ => {}
     }
-    if crate::locate::asks_for_location(&lower) {
+    // "where is X defined" and "who calls X" are about a definition or a call site, not a location to change.
+    let definition_or_callers = matches!(class, QueryClass::SymbolDefinition | QueryClass::Callers);
+    if !definition_or_callers && (crate::locate::asks_for_location(question) || asks_where_is_code(question)) {
         QueryIntent::Locate
-    } else if asks_for_edit(&lower) {
+    } else if asks_for_edit(question, class) {
         QueryIntent::Edit
-    } else if asks_for_trace(&lower) {
-        QueryIntent::Trace
-    } else if asks_for_memory(&lower, class) {
+    } else if class == QueryClass::Timeline {
         QueryIntent::Memory
-    } else if EXPLAIN_PHRASES.iter().any(|p| lower.contains(p)) {
+    } else if !definition_or_callers && asks_for_location_family(question) {
+        QueryIntent::Locate
+    } else if asks_for_trace(question) {
+        QueryIntent::Trace
+    } else if asks_for_memory(question, class) {
+        QueryIntent::Memory
+    } else if asks_for_explain(question) {
         QueryIntent::Explain
     } else {
         QueryIntent::General
     }
+}
+
+/// Words of a folded text: whitespace-separated, with the outer punctuation removed. Identifiers
+/// keep their underscores ("apply_late_fee" is not "apply").
+fn words(text: &str) -> impl DoubleEndedIterator<Item = &str> {
+    text.split_whitespace().map(|w| w.trim_matches(|c: char| !c.is_alphanumeric())).filter(|w| !w.is_empty())
+}
+
+/// Where is the code or which file: a location. A status question ("ZC-19 nerede kaldı") is not.
+fn asks_where_is_code(question: &str) -> bool {
+    let location = hits(question, LOCATE_PHRASES) > 0 || LOCATE_WORDS.iter().any(|w| exact_word(question, w));
+    location && hits(question, STATUS_PHRASES) == 0
+}
+
+/// A "hangi modülde / dosyada / katmanda" question: a noun of a code place with a locative suffix.
+fn asks_for_locative_place(question: &str) -> bool {
+    let folded = fold(question);
+    let locative = |w: &str| LOCATE_NOUNS.iter().any(|n| w.starts_with(n)) && (w.ends_with("de") || w.ends_with("da") || w.ends_with("te") || w.ends_with("ta"));
+    (exact_word(question, "hangi") || exact_word(question, "which")) && words(&folded).any(locative)
+}
+
+/// "Which file/module/crate … change / computes / implemented / has", and "where would I put /
+/// where does the app read": a code place is asked for, not a change.
+fn asks_for_location_family(question: &str) -> bool {
+    let status = hits(question, STATUS_PHRASES) > 0;
+    // "which file does X" is a question about a place; "how does X … the file it is in" is not.
+    let which_does = exact_word(question, "which") && exact_word(question, "does");
+    let place = hits(question, LOCATE_NOUNS) > 0 && (hits(question, LOCATE_VERBS) > 0 || exact_hits(question, LOCATE_HAS_WORDS) > 0 || which_does);
+    let where_verb = where_word(question) && exact_hits(question, WHERE_LOCATE_WORDS) > 0;
+    let where_noun = where_word(question) && exact_hits(question, WHERE_LOCATE_NOUNS) > 0;
+    !status && (place || where_verb || where_noun || asks_for_locative_place(question))
+}
+
+/// True when the first word after the polite prefixes is an English edit verb, or the first
+/// sentence ends with a Turkish edit verb. A history question ("hangi commit … ekledi") is not an edit.
+fn asks_for_edit(question: &str, class: QueryClass) -> bool {
+    let folded = fold(question);
+    let all: Vec<&str> = words(&folded).collect();
+    let first = all.iter().copied().find(|w| !EDIT_PREFIXES.contains(w)).unwrap_or_default();
+    if CREATE_VERBS.contains(&first) {
+        // "write a haiku" is not a code change; "write a unit test" is.
+        return has_code_name(question) || all.iter().any(|w| CODE_NOUNS.contains(w));
+    }
+    if EDIT_VERBS.contains(&first) {
+        return true;
+    }
+    if class == QueryClass::Implementation {
+        return false;
+    }
+    let sentence = folded.split(['.', '?', '!', '\n']).next().unwrap_or_default().trim_end();
+    if sentence.ends_with("refactor et") || sentence.ends_with("refactor edin") {
+        return true;
+    }
+    let mut tail = words(sentence).rev();
+    let Some(mut last) = tail.next() else { return false };
+    if QUESTION_PARTICLES.contains(&last) {
+        let Some(verb) = tail.next() else { return false };
+        last = verb;
+    }
+    EDIT_WORDS_TR.contains(&last) || EDIT_STEMS_TR.iter().any(|s| last.starts_with(*s))
+}
+
+/// True for a question about a flow: "trace …", a flow or sequence, "akışı", "izini sür", a call
+/// chain, "from X to Y" with a flow marker, or "from X (-den) up to Y (-e kadar)".
+fn asks_for_trace(question: &str) -> bool {
+    let folded = format!(" {} ", fold(question));
+    let ablative_to_place = has_token(&folded, "kadar") && ABLATIVE_TOKENS.iter().any(|t| has_token(&folded, t));
+    hits(&folded, TRACE_PHRASES) > 0
+        || TRACE_STEMS_TR.iter().any(|s| matches(&folded, s))
+        || exact_hits(&folded, TRACE_WORDS) > 0
+        || ablative_to_place
+        || (folded.contains(" from ") && folded.contains(" to ") && (TRACE_FROM_TO_MARKERS.iter().any(|k| folded.contains(*k)) || exact_hits(&folded, TRACE_FROM_TO_TOKENS) > 0))
+}
+
+/// True for a question about decisions or history: a timeline, task or implementation class, a
+/// past-conversation phrase, or "why" about a decision ("why did X replace Y").
+fn asks_for_memory(question: &str, class: QueryClass) -> bool {
+    let decision_why = (exact_word(question, "why") || exact_word(question, "neden")) && exact_hits(question, DECISION_WORDS) > 0;
+    matches!(class, QueryClass::Timeline | QueryClass::Task | QueryClass::Implementation) || hits(question, MEMORY_PHRASES) > 0 || decision_why
+}
+
+/// True for "how/why does code work": explain phrases, any "why" or "neden", "nasıl" with a
+/// present-tense verb or an explain word ("nasıl … ediyor, kısaca anlat"), and "ne" + a verb.
+fn asks_for_explain(question: &str) -> bool {
+    let folded = fold(question);
+    let all: Vec<&str> = words(&folded).collect();
+    let how = has_token(&folded, "nasil") && (all.iter().any(|w| w.ends_with("yor")) || EXPLAIN_HOW_WORDS.iter().any(|w| has_token(&folded, w)));
+    let ne_verb = all.windows(2).any(|p| p[0] == "ne" && p[1].ends_with("yor"));
+    // "why" is a question about code only with a code name or a code noun ("write a summary of why teams …" is not).
+    let why = exact_word(question, "neden") || exact_word(question, "why");
+    let progressive = all.iter().any(|w| w.ends_with("yor"));
+    let why_about_code = why && (has_code_name(question) || hits(question, EXPLAIN_CODE_NOUNS) > 0 || progressive);
+    hits(question, EXPLAIN_PHRASES) > 0 || why_about_code || how || ne_verb
 }
 
 #[cfg(test)]
@@ -88,6 +147,9 @@ mod tests {
         assert_eq!(intent("What did we decide about the merge policy?", QueryClass::Timeline), QueryIntent::Memory);
         assert_eq!(intent("Where is Bm25Weight defined?", QueryClass::SymbolDefinition), QueryIntent::General);
         assert_eq!(intent("Bu fonksiyon nasıl çalışıyor?", QueryClass::Search), QueryIntent::Explain);
+        assert_eq!(intent("hangi commit parse_config'i değiştirdi?", QueryClass::Implementation), QueryIntent::Memory);
+        assert_eq!(intent("Can you add a test for parse_config?", QueryClass::Search), QueryIntent::Edit);
+        assert_eq!(intent("Give the function name and the file path.", QueryClass::Search), QueryIntent::General);
     }
 
     #[test]

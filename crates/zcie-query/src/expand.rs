@@ -90,7 +90,7 @@ impl QueryEngine {
         Ok(item)
     }
 
-    fn worktree_root(&self, worktree_id: Option<&String>) -> Option<String> {
+    pub(crate) fn worktree_root(&self, worktree_id: Option<&String>) -> Option<String> {
         let key = layout::registry(&self.config.tenant, "worktree", worktree_id?);
         self.store.get::<WorktreeRecord>(Cf::Registry, &key).ok().flatten().map(|w| w.root_path)
     }
