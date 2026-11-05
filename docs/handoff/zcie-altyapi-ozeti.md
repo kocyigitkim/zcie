@@ -182,7 +182,7 @@ Kanıt türleri: client_trace, user_confirmation, commit_trailer (`ZCIE-Task: #8
 | UserPromptSubmit | `inject-context.sh` | Bağlam kapsülü (aşağıda). |
 | UserPromptSubmit | `session-guard.sh` | Oturum ~60k token'ı geçince uyarı. |
 | UserPromptSubmit | `tool-unlock.sh` | Gerektiğinde kapalı bir aracı bu oturum için açar. |
-| PreToolUse (Read) | `read-guard.sh` | 400 satırdan uzun dosyanın ofsetsiz okunmasını ilk 250 satırla sınırlar, sembol taslağını (satır aralıklarıyla) verir. |
+| PreToolUse (Read\|Bash) | `read-guard.sh` | 400 satırdan uzun dosyanın ofsetsiz okunmasını ilk 250 satırla sınırlar, sembol taslağını (satır aralıklarıyla) verir. |
 | PostToolUse | `post-tool-use.sh` | Edit/Write → `file.changed`, Bash → `command.run`. |
 | Stop | `assistant-message.sh` | Asistanın son cevabını kaydeder. |
 | SessionEnd | `stop.sh`, `tool-relock.sh` | `session.end`; açılan araçları tekrar kapatır. |

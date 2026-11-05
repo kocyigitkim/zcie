@@ -121,7 +121,12 @@ Default `security.exclude_globs`:
 **/node_modules/**
 **/target/**
 **/.git/**
+**/*.map
+**/*.min.js
+**/*.min.css
 ```
+
+The last three globs are generated files (ADR-028).
 
 - Do not read, hash or index a file that matches an exclusion glob.
 - Use the `ignore` crate `overrides` or `globset` (provided with `ignore`) to match.

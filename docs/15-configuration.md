@@ -41,7 +41,7 @@ debounce_ms = 200
 
 [index]
 max_file_bytes = 1048576
-languages = ["rust", "typescript", "python"]
+languages = ["*"]
 
 [query]
 default_token_budget = 250
@@ -84,7 +84,7 @@ model = "potion-multilingual-128M"  # folder under <home>/models/ (zcie vector i
 | `ingest.worker_count` | integer | `4` | Number of ingest workers. |
 | `ingest.debounce_ms` | integer | `200` | Wait time to merge rapid file changes for one path. |
 | `index.max_file_bytes` | integer | `1048576` | Larger files get metadata and hash only. |
-| `index.languages` | string list | `rust, typescript, python` | Languages for symbol extraction. |
+| `index.languages` | string list | `*` | Languages for symbol extraction. `*` means all languages that ZCIE knows (ADR-030); a list of names (`rust`, `typescript`, `javascript`, `python`, `hfl`, `go`, `java`, …) limits them. |
 | `query.default_token_budget` | integer | `250` | Budget when the request has no budget. |
 | `query.max_token_budget` | integer | `4000` | Highest budget a request can ask for. |
 | `query.max_results` | integer | `8` | Maximum results in one capsule. |
@@ -96,6 +96,9 @@ model = "potion-multilingual-128M"  # folder under <home>/models/ (zcie vector i
 | `security.exclude_globs` | string list | see above | Files that are never read or indexed. |
 | `capture.assistant_messages` | bool | `false` | Store `assistant.message` events. If `false`, reject them with HTTP 403. |
 | `capture.command_output_max_bytes` | integer | `65536` | Truncate command and test output to this size. Mark it `"truncated": true`. |
+| `lsp.enabled` | bool | `true` | Use rust-analyzer and typescript-language-server for Callers queries (ADR-033). `false`: heuristic only. |
+| `lsp.idle_minutes` | integer | `10` | A language server without a query for this long stops. |
+| `lsp.timeout_ms` | integer | `3000` | Longest wait for one answer. The heuristic answers when the server is not ready. |
 
 Token estimate rule: `tokens = ceil(chars / 4)`.
 
@@ -130,3 +133,15 @@ Policy files are in `~/.zcie/config/policies/`. Copies of the defaults are in `c
 | `indexing.toml` | Extra exclude globs and generated-file patterns per repository. |
 | `security.toml` | Extra secret patterns (regex) for redaction. |
 | `context.toml` | Per-client token budget overrides. |
+
+## 6. Hook and test settings (environment)
+
+These settings are read from the environment of the hook or test. They are not in `engine.toml`. They are set with `export` before Claude Code starts. ADR-033 describes them.
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `ZCIE_READ_MAX_LINES` | `400` | A Bash `sed -n` range or a whole-file `cat` wider than this on a text file is refused by the read guard. |
+| `ZCIE_IMAGE_MAX_PX` | `1200` | A PNG or JPG wider than this is read as a copy scaled with `sips` (macOS). `0` turns it off. |
+| `ZCIE_HANDOFF_TOKENS` | `150000` | Context size at which a new-topic prompt gets the handoff message. |
+| `ZCIE_HANDOFF_MAX_AGE_H` | `48` | A handoff note older than this many hours is not printed at a clear or compact. |
+| `ZCIE_KEYWORD_MIN` | `0` | Test only. The minimum holdout joint accuracy (0 to 1) for `keyword_accuracy`. Example: `ZCIE_KEYWORD_MIN=0.9`. |

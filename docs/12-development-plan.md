@@ -1406,6 +1406,216 @@ Do the tasks in release order: P5.1 (D-066, D-067), P5.2 (D-068, D-069, D-072), 
   - `cargo clippy --workspace --all-targets -- -D warnings` passes on macOS and on `windows-latest`.
   - TS-27-01 passes; the CI smoke test (setup, project add, query, verify) passes on `windows-latest`.
 
+### D-090 — HFL symbol extractor (ADR-028)
+
+- [x] Done
+- **Goal:** `.hfl` files get symbols, imports, call sites and used names.
+- **Files:** `crates/zcie-parse/src/{lib,pool}.rs`, `crates/zcie-parse/src/extractors/{mod,hfl}.rs` (new), `crates/zcie-fs/src/binary.rs`, `crates/zcie-core/src/config.rs`, `config/default.toml`, `config/schema.json`.
+- **Done when:** `cargo build --workspace` and `cargo clippy --workspace --all-targets -- -D warnings` pass.
+
+### D-091 — Exclusion of generated files (ADR-028)
+
+- [x] Done
+- **Goal:** `*.map`, `*.min.js` and `*.min.css` files are not indexed.
+- **Files:** `crates/zcie-security/src/exclude.rs`.
+- **Done when:** `cargo build --workspace` passes.
+
+### D-092 — Possibly stale memory (ADR-028)
+
+- [x] Done
+- **Goal:** A memory result that names a file changed after the record gets the status `possibly_stale`.
+- **Files:** `crates/zcie-query/src/{items,planner}.rs`, `adapters/claude-code/hooks/inject-context.sh`.
+- **Done when:** `cargo build --workspace` and `cargo clippy --workspace --all-targets -- -D warnings` pass.
+
+### D-093 — Read window at the working set (ADR-028)
+
+- [x] Done
+- **Goal:** The read guard starts the 250-line window near the first working-set range of the file.
+- **Files:** `adapters/claude-code/hooks/read-guard.sh`.
+- **Done when:** `sh -n` of the script passes.
+
+### D-094 — hellfurylanguage tasks in the isolated benchmark (ADR-028)
+
+- [x] Done
+- **Goal:** The isolated benchmark can index hellfurylanguage and run its tasks.
+- **Files:** `benchmarks/isolated/{snapshot,run}.py`, `benchmarks/context/hfl.json` (new).
+- **Done when:** `python3 -m py_compile` of the scripts passes.
+
+### D-095 — Cache split in the benchmark report (ADR-028)
+
+- [x] Done
+- **Goal:** The report shows cache creation, cache read and the weighted cost per run.
+- **Files:** `benchmarks/isolated/report.py`.
+- **Done when:** `python3 -m py_compile` passes.
+
+### D-096 — LongMemEval retrieval test (ADR-028)
+
+- [x] Done
+- **Goal:** A runner measures how often ZCIE returns the answer of a LongMemEval question.
+- **Files:** `benchmarks/longmemeval/{run.py,README.md}` (new).
+- **Done when:** `python3 -m py_compile` passes.
+
+### D-097 — Failed commands and error recall (ADR-029)
+
+- [x] Done
+- **Goal:** Failed Bash commands are stored; an error seen before brings back the earlier results.
+- **Files:** `adapters/claude-code/hooks/post-tool-use.sh`, `apps/zcie/src/commands/claude/hooks.rs`, `benchmarks/isolated/run.py`.
+- **Done when:** `sh -n` of the script and `cargo clippy --workspace --all-targets -- -D warnings` pass.
+
+### D-098 — Command playbook (ADR-029)
+
+- [x] Done
+- **Goal:** Build and test commands that passed are shown at session start.
+- **Files:** `adapters/claude-code/hooks/{post-tool-use,session-context,common}.sh`.
+- **Done when:** `sh -n` of the scripts passes.
+
+### D-099 — Note on repeated reads (ADR-029)
+
+- [x] Done
+- **Goal:** A repeated Read of an unchanged range gets a note.
+- **Files:** `adapters/claude-code/hooks/read-guard.sh`.
+- **Done when:** `sh -n` of the script passes.
+
+### D-100 — LSP decision (ADR-029)
+
+- [x] Done
+- **Goal:** Record the decision of ADR-029 item 5. No code.
+- **Files:** `docs/adr/ADR-029-command-memory-and-reread.md`.
+- **Done when:** The ADR is in `docs/adr`.
+
+### D-101 — Turn-weighted median in `zcie usage` (ADR-029)
+
+- [x] Done
+- **Goal:** A short session part does not count as much as a long session in the saving.
+- **Files:** `apps/zcie/src/commands/usage/{report,tests}.rs`.
+- **Done when:** `cargo clippy --workspace --all-targets -- -D warnings` passes.
+
+### D-102 — JavaScript symbols (ADR-030)
+
+- [x] Done
+- **Goal:** `.js`, `.jsx`, `.mjs` and `.cjs` files get symbols with the TSX grammar.
+- **Files:** `crates/zcie-fs/src/binary.rs`, `crates/zcie-parse/src/{pool.rs,grammars/mod.rs}`.
+- **Done when:** `cargo clippy --workspace --all-targets -- -D warnings` passes.
+
+### D-103 — Line extractor for other languages (ADR-030)
+
+- [x] Done
+- **Goal:** The languages of ADR-030 item 2 get symbols, imports, call sites and used names.
+- **Files:** `crates/zcie-parse/src/extractors/{lines.rs (new, replaces hfl.rs),mod.rs}`, `crates/zcie-parse/src/{pool,lib}.rs`, `crates/zcie-fs/src/binary.rs`.
+- **Done when:** `cargo clippy --workspace --all-targets -- -D warnings` passes.
+
+### D-104 — All languages by default (ADR-030)
+
+- [x] Done
+- **Goal:** The default `index.languages` is `["*"]`.
+- **Files:** `crates/zcie-core/src/config.rs`, `crates/zcie-ingest/src/processors/file.rs`, `config/{default.toml,schema.json}`.
+- **Done when:** `cargo clippy --workspace --all-targets -- -D warnings` passes.
+
+### D-105 — Change impact in edit queries (ADR-031)
+
+- [x] Done
+- **Goal:** An edit query returns the callers and the tests (two steps) of its first symbol.
+- **Files:** `crates/zcie-types/src/query.rs`, `crates/zcie-query/src/{impact.rs (new),lib.rs,planner.rs}`, `adapters/claude-code/hooks/inject-context.sh`.
+- **Done when:** `cargo clippy --workspace --all-targets -- -D warnings` passes.
+
+### D-106 — File history in edit, explain and trace queries (ADR-031)
+
+- [x] Done
+- **Goal:** The response lists the 3 newest commits that changed the file of the first symbol.
+- **Files:** `crates/zcie-query/src/impact.rs`.
+- **Done when:** `cargo clippy --workspace --all-targets -- -D warnings` passes.
+
+### D-107 — Cost alert in ZCIE Bar (ADR-031)
+
+- [x] Done
+- **Goal:** A notification when a session becomes an outlier.
+- **Files:** `apps/zcie-bar/Sources/Model.swift`.
+- **Done when:** `apps/zcie-bar/build.sh --no-open` passes.
+
+### D-108 — Fast rescan with size and modification time (ADR-032)
+
+- [x] Done
+- **Goal:** A scan makes no `IndexFile` job for an unchanged file.
+- **Files:** `crates/zcie-types/src/code.rs`, `crates/zcie-fs/src/discover.rs`, `crates/zcie-ingest/src/processors/{file,scan}.rs`.
+- **Done when:** `cargo clippy --workspace --all-targets -- -D warnings` passes.
+
+### D-109 — Telemetry export in OTLP/JSON (ADR-032)
+
+- [x] Done
+- **Goal:** `zcie telemetry export` writes or posts the activity log as OpenTelemetry spans.
+- **Files:** `apps/zcie/src/commands/telemetry.rs` (new), `apps/zcie/src/{main.rs,commands/mod.rs}`, `apps/zcie/Cargo.toml`.
+- **Done when:** `cargo clippy --workspace --all-targets -- -D warnings` passes.
+
+### D-110 — Similar earlier task in edit queries (ADR-032)
+
+- [x] Done
+- **Goal:** An edit query shows the files and the passed commands of a similar earlier request.
+- **Files:** `crates/zcie-query/src/impact.rs`.
+- **Done when:** `cargo clippy --workspace --all-targets -- -D warnings` passes.
+
+### D-111 — Shared memory export and import (ADR-032)
+
+- [x] Done
+- **Goal:** `zcie memory export` and `zcie memory import` move decisions between computers through a file.
+- **Files:** `apps/zcie/src/commands/memory.rs` (new), `apps/zcie/src/{main.rs,commands/mod.rs}`.
+- **Done when:** `cargo clippy --workspace --all-targets -- -D warnings` passes.
+
+### D-112 — Read guard for Bash reads (ADR-033 item a)
+
+- [x] Done
+- **Goal:** A whole-file `cat` or a wide `sed -n` of a text file is refused with the window command and the outline. A large PNG or JPG is read as a scaled copy.
+- **Files:** `adapters/claude-code/hooks/read-guard.sh`, `apps/zcie/src/commands/claude/hooks.rs`, `tests/integration/usage.rs`.
+- **Done when:** `sh -n` of the script passes and TS-33-07, TS-33-08 pass.
+
+### D-113 — Subagent capsule and notes (ADR-033 item b)
+
+- [x] Done
+- **Goal:** A subagent gets the capsule at start, and the notes of the last 5 finished subagents. Every subagent ends with a 15-line report limit.
+- **Files:** `adapters/claude-code/hooks/subagent-context.sh`, `apps/zcie/src/commands/claude/hooks.rs`, `tests/integration/handoff.rs`.
+- **Done when:** `sh -n` of the script passes and TS-33-05 passes.
+
+### D-114 — Keyword engine (ADR-033 item c)
+
+- [x] Done
+- **Goal:** Turkish folding, word-start matching, exact ambiguous words, typo tolerance and scored classes. The held-out joint accuracy reaches 90 % or more.
+- **Files:** `crates/zcie-query/src/{keywords.rs (new), keyword_lists.rs (new), classify.rs, intent.rs}`, `crates/zcie-query/tests/keyword_accuracy.rs (new)`, `crates/zcie-query/tests/data/keyword_cases*.json (new)`, `tests/integration/evidence.rs`.
+- **Done when:** `cargo clippy --workspace --all-targets -- -D warnings` passes and TS-33-09 passes with `ZCIE_KEYWORD_MIN=0.9`.
+
+### D-115 — Session handoff (ADR-033 item d)
+
+- [x] Done
+- **Goal:** At a large context and a new topic, the user sees a handoff message. The handoff note is written by PreCompact and printed once after a clear or compact.
+- **Files:** `adapters/claude-code/hooks/{session-guard.sh, session-handoff.sh (new), common.sh, inject-context.sh}`, `apps/zcie/src/commands/claude/hooks.rs`, `tests/integration/handoff.rs (new)`.
+- **Done when:** `sh -n` of the scripts passes and TS-33-01 to TS-33-04 and TS-33-06 pass.
+
+### D-116 — Project card for general prompts (ADR-033 item e)
+
+- [x] Done
+- **Goal:** A general prompt of 6 words or more that gets no capsule gets the project card, once per session.
+- **Files:** `adapters/claude-code/hooks/inject-context.sh`, `tests/integration/context_hooks.rs`.
+- **Done when:** `sh -n` of the script passes and TS-33-12 passes.
+
+### D-117 — Usage explain and bar fields (ADR-033 item f)
+
+- [x] Done
+- **Goal:** `zcie usage --explain` shows the cost cause per session. The session rows have image, Bash read and context fields. ZCIE Bar shows the context and the main cause.
+- **Files:** `apps/zcie/src/commands/usage/{scan.rs, session.rs, honest.rs, mod.rs, tests.rs}`, `sdk/rust/src/lib.rs`, `apps/zcie-bar/Sources/{Model.swift, SessionsView.swift}`, `tests/integration/usage.rs`.
+- **Done when:** `cargo clippy --workspace --all-targets -- -D warnings` passes, `apps/zcie-bar/build.sh --no-open` passes, and TS-33-10 and TS-33-11 pass.
+
+### D-118 — Memory prune (ADR-033 item g)
+
+- [x] Done
+- **Goal:** `zcie memory prune` removes subagent reports and code-like decision records. It is a dry run unless `--apply` is given.
+- **Files:** `apps/zcie/src/commands/memory.rs` (ADR-032 file, extended).
+- **Done when:** `cargo clippy --workspace --all-targets -- -D warnings` passes and TS-33-13 passes.
+
+### D-119 — Language server for Callers queries (ADR-033 item h, supersedes ADR-029 item 6)
+
+- [x] Done
+- **Goal:** Callers queries use rust-analyzer or typescript-language-server when they are ready. Otherwise the heuristic answers. Idle servers stop.
+- **Files:** `crates/zcie-lsp/*` (new), `crates/zcie-core/src/{config.rs, startup.rs}`, `config/{default.toml, schema.json}`, `crates/zcie-query/src/{locate.rs, routes.rs, planner.rs}`, `tests/integration/code_intel.rs`.
+- **Done when:** `cargo clippy --workspace --all-targets -- -D warnings` passes and TS-33-14 and TS-33-15 pass (or skip with a logged reason when the server is missing).
+
 ---
 
 ## 7. After the last development task

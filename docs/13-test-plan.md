@@ -446,6 +446,86 @@ Files: `apps/zcie/src/commands/service.rs` (TS-27-01), `.github/workflows/ci.yml
 | TS-27-01 | `startup_script` for a `zcied.exe` and a home in a folder with a space. | The VBScript quotes both paths and starts the program with window style 0. |
 | TS-27-02 | CI on `windows-latest`: clippy, unit tests, `build-npm.sh`, `npm install -g`, `zcie setup -y`, `zcie project add`, `zcie query`, `zcie verify`, `zcie daemon stop`. | Every step passes. The query finds the symbol. |
 
+### TS-28 — Measured gaps (ADR-028)
+
+Files: `crates/zcie-parse/tests/hfl.rs` (TS-28-01), `crates/zcie-security/tests/security.rs` (TS-28-02), `crates/zcie-query/src/items.rs` (TS-28-03). TS-28-04 and TS-28-05 are manual checks.
+
+| ID | Input | Expected result |
+|---|---|---|
+| TS-28-01 | An HFL source with `import`, `const`, `global var`, `struct`, `class` with a `public func`, `func`, `native func`, a call in a comment and in a string. | Each declaration with its kind, qualified name and span; the method is `Walker.step`; the import; only the two real call sites. |
+| TS-28-02 | The default exclusion set and `app.js.map`, `lib.min.js`, `style.min.css`, `map.ts`, `app.js`. | The first three are excluded; the last two are not. |
+| TS-28-03 | A memory text with a path, a path with a line, a URL and a text with no path. | The paths and their shorter forms; no URL; no path for the plain text. |
+| TS-28-04 | Release daemon, temporary project: a decision names `src/limits.rs`; then the file changes. Also a `.hfl` file. | Before the change the record is `active`; after it, `possibly_stale`. The HFL function is a query result. |
+| TS-28-05 | `read-guard.sh` with a 1,000-line file and the working set: none, `:600-640`, `:900-950`, another file. | `limit` 250 with no offset; offset 580; offset 751; no offset. |
+
+### TS-29 — Command memory and repeated reads (ADR-029)
+
+Files: `apps/zcie/src/commands/claude/hooks.rs` (TS-29-01), `apps/zcie/src/commands/usage/tests.rs` (TS-29-05). TS-29-02 to TS-29-04 are manual checks with a release daemon.
+
+| ID | Input | Expected result |
+|---|---|---|
+| TS-29-01 | `profile(capture)`. | It has `PostToolUseFailure` with matcher `Bash` and `post-tool-use.sh`. |
+| TS-29-02 | An earlier answer with `error[E0433] … tokio_util`; then a `PostToolUseFailure` input with the same error line; then one with an unrelated error. | The first prints the earlier answer as `additionalContext`; the failed command is stored with exit code 101; the second prints nothing. |
+| TS-29-03 | `PostToolUse` Bash inputs `cargo test -p x`, `ls -la`, `cargo test -p x`, `npm run build`; then `session-context.sh`. | The playbook has `cargo test -p x` and `npm run build` once each; the session text shows both. |
+| TS-29-04 | `read-guard.sh`: the same Read twice, another offset, another session, a subagent, the file changed. | Only the second Read gets the repeated-read note. |
+| TS-29-05 | `weighted_median` of (212, 3 turns) and (1544, 81 turns); of two equal weights; of nothing. | 1544; the mean of the two; none. |
+
+### TS-30 — All languages (ADR-030)
+
+Files: `crates/zcie-parse/tests/languages.rs` (TS-30-01, TS-30-02). TS-30-03 is a manual check.
+
+| ID | Input | Expected result |
+|---|---|---|
+| TS-30-01 | Sources in Go, Java, C++, C#, Kotlin, Ruby, Lua, shell and SQL with a declaration in a comment or a string. | Each declaration with its kind, qualified name and span; the C++ `#include "fees.h"` import; the `printf` call; no symbol from a comment. |
+| TS-30-02 | A `.jsx` source with a function, JSX and a class. | `route` (function) and `Cache` (class) with the TSX grammar. |
+| TS-30-03 | Release daemon, fresh home, hellfurylanguage. | The index finishes; queries for a C++ function, an HFL function and a JS file return them with their paths and ranges. |
+
+### TS-31 — Change impact, file history, cost alert (ADR-031)
+
+All are manual checks with a release daemon (the script makes a Git repository with two commits).
+
+| ID | Input | Expected result |
+|---|---|---|
+| TS-31-01 | `fees.rs` defines `apply_late_fee`; `billing.rs` imports it in `charge`; `tests/billing_test.rs` calls `charge`. Edit query "Change apply_late_fee to charge 3 per day". | Intent `edit`; `impact` has the caller `src/billing.rs:4 [verified: import]`, the test `tests/billing_test.rs:5 [via charge]` and both commits. |
+| TS-31-02 | Explain query "Explain how apply_late_fee works". | Intent `explain`; `impact` has only the commits. |
+| TS-31-03 | `inject-context.sh` twice in one session with the edit prompt. | The first capsule has "Change impact of apply_late_fee" with the lines; the second has no impact block. |
+| TS-31-04 | `apps/zcie-bar/build.sh --no-open`. | It builds with no error and no warning. |
+
+### TS-32 — Infrastructure round (ADR-032)
+
+File: `apps/zcie/src/commands/telemetry.rs` (TS-32-02). The others are manual checks with release daemons.
+
+| ID | Input | Expected result |
+|---|---|---|
+| TS-32-01 | hellfurylanguage in a fresh home; then the same project added again with no change. | The second scan makes almost no `IndexFile` jobs (7,152 → 2). TS-19 still passes (the engine becomes idle). |
+| TS-32-02 | `span()` of a query line with `ok: false`; a bad line; a line older than `since`. | Name, times in nanoseconds, status 2, GenAI and `zcie.*` attributes; none; none. |
+| TS-32-03 | `zcie telemetry export --endpoint http://<local collector>/`; then `--days 0`. | One POST to `/v1/traces` with all spans; 0 spans. |
+| TS-32-04 | An earlier request with a `file.changed` and a passed `command.run` in its turn; a similar edit query. | `impact` has `similar earlier task: "…" changed src/report.py; passed: pytest …` (path relative, also through `/var` → `/private/var`). |
+| TS-32-05 | `zcie memory export` in home 1; `zcie memory import` twice in home 2; a question about the decision in home 2. | 1 exported; 1 imported, then 1 already present; the decision is the first result. |
+| TS-32-06 | `zcie-mcp`: `initialize` 2025-06-18; `tools/list` and `tools/call` with no `initialize` and the 2026-07-28 `_meta`. | All three answer. |
+
+### TS-33 — Handoff, read guard, keywords, LSP (ADR-033)
+
+Files: `tests/integration/handoff.rs` (TS-33-01 to 06; the test functions are named `ts_27_01` to `ts_27_06`, the number 27 was taken by TS-27 first), `tests/integration/usage.rs` (TS-33-07, 08; functions `ts_22_06`, `ts_22_07`), `apps/zcie/src/commands/usage/tests.rs` (TS-33-10, 11; functions `f5_01`, `f5_02`), `tests/integration/context_hooks.rs` (TS-33-12; function `f7_01`), `crates/zcie-query/tests/keyword_accuracy.rs` (TS-33-09), `apps/zcie/src/commands/memory.rs` (TS-33-13), `crates/zcie-lsp/tests/servers.rs` (TS-33-14, 15).
+
+| ID | Input | Expected result |
+|---|---|---|
+| TS-33-01 | `session-handoff.sh` on a fake transcript at PreCompact. | The handoff note of the session is written. |
+| TS-33-02 | A handoff note of another session; a SessionStart with `clear`. | The note prints once; the second start prints nothing. |
+| TS-33-03 | A long session (at or above `ZCIE_HANDOFF_TOKENS`) and a prompt with no file overlap. | The "new topic" message is shown; the note is written in the background. |
+| TS-33-04 | A session of 50,000 tokens and a new-topic prompt. | No message. |
+| TS-33-05 | A finished subagent, then a new subagent start. | The new subagent gets the note of the finished one. |
+| TS-33-06 | `session-guard.sh` on a 140 MB transcript. | It returns in under 0.5 s. The note follows later. |
+| TS-33-07 | `read-guard.sh` with a whole-file `cat` and a `sed -n` range wider than 400 lines on a text file. | `permissionDecision` is `deny`; the message has the window command and the outline. |
+| TS-33-08 | Read of a PNG wider than `ZCIE_IMAGE_MAX_PX` (macOS). | The Read gets a scaled copy. |
+| TS-33-09 | `cargo test -p zcie-query --test keyword_accuracy` with `ZCIE_KEYWORD_MIN=0.9`. | The holdout joint accuracy is at least 0.9. |
+| TS-33-10 | `zcie usage --explain` on the fixture transcripts. | Each session row has `images`, `image_tokens_est`, `bash_read_chars`, `avg_context`, `output_share` and `cause`. |
+| TS-33-11 | The main cause of a session with the largest cost driver. | The cause is that driver. |
+| TS-33-12 | A general prompt of 6 words or more with no capsule, twice in one session. | The project card comes once. |
+| TS-33-13 | `zcie memory prune` on a fixture home (dry run); then with `--apply`. | The dry run deletes nothing; `--apply` deletes the subagent reports and the code-like decisions, and keeps the other decisions. |
+| TS-33-14 | `rust_analyzer_finds_method_call_sites` on a small crate. | The call sites of the method are found. Skips with a line when rust-analyzer is missing. |
+| TS-33-15 | `typescript_server_finds_import_call_sites` on a small project. | The import call sites are found. Skips with a line when no TypeScript 5.x is found. |
+
 ## 6. Token regression
 
 Put these tests in `tests/token-regression/`.

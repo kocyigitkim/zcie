@@ -179,7 +179,7 @@ Process files in batches of 200 jobs per `WriteBatch`.
 | `.md`, `.txt` | none (document) |
 | other | none (no parse) |
 
-5. If the language is in `index.languages`, parse the file (section 8).
+5. If the language is in `index.languages` (or the list has `*`), parse the file (section 8). Languages with no Tree-sitter grammar use the line extractor (ADR-028, ADR-030).
 6. In one `WriteBatch`:
    - Store the new `FileRecord`.
    - Store the new `SymbolRecord`s. Delete the symbols of the old file version that are not in the new version.
