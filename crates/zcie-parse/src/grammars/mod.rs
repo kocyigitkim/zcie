@@ -9,6 +9,8 @@ pub fn language_for(language: &str, path: &str) -> Option<Language> {
     match language {
         "rust" => Some(tree_sitter_rust::LANGUAGE.into()),
         "python" => Some(tree_sitter_python::LANGUAGE.into()),
+        // TSX parses JavaScript and JSX (ADR-030).
+        "javascript" => Some(tree_sitter_typescript::LANGUAGE_TSX.into()),
         "typescript" if path.ends_with(".tsx") => Some(tree_sitter_typescript::LANGUAGE_TSX.into()),
         "typescript" => Some(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
         _ => None,

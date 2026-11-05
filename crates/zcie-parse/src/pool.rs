@@ -47,8 +47,11 @@ impl ParserPool {
         ParserPool
     }
 
-    /// Parses `source` of `language` (`rust`, `typescript`, `python`) and extracts symbols and imports.
+    /// Parses `source` of `language` (`rust`, `typescript`, `javascript`, `python`, or a language of `extractors::lines::LANGUAGES`) and extracts symbols and imports.
     pub fn parse_file(&self, language: &str, path: &str, source: &str) -> Result<ParsedFile> {
+        if extractors::lines::supports(language) {
+            return Ok(extractors::lines::parse(language, source));
+        }
         let grammar = language_for(language, path)
             .ok_or_else(|| Error::UnsupportedLanguage(language.to_string()))?;
         let mut parser = Parser::new();
@@ -71,7 +74,7 @@ impl ParserPool {
         let src = source.as_bytes();
         match language {
             "rust" => extractors::rust::extract(root, src, &mut parsed),
-            "typescript" => extractors::typescript::extract(root, src, &mut parsed),
+            "typescript" | "javascript" => extractors::typescript::extract(root, src, &mut parsed),
             _ => extractors::python::extract(root, src, &mut parsed),
         }
         let defined: std::collections::HashSet<&str> = parsed.symbols.iter().map(|s| s.name.as_str()).collect();

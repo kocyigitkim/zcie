@@ -5,7 +5,7 @@ use globset::{Glob, GlobSet, GlobSetBuilder};
 use crate::error::{Error, Result};
 
 /// Default exclusion globs (`docs/11-security.md` section 6).
-pub const DEFAULT_GLOBS: [&str; 15] = [
+pub const DEFAULT_GLOBS: [&str; 18] = [
     "**/.env",
     "**/.env.*",
     "**/*.pem",
@@ -22,6 +22,10 @@ pub const DEFAULT_GLOBS: [&str; 15] = [
     // Claude Code settings and their backups (`zcie claude setup`): configuration, not project text.
     "**/.claude/settings*.json*",
     "**/*.zcie-backup",
+    // Generated files (ADR-028): source maps and minified bundles are noise in the index.
+    "**/*.map",
+    "**/*.min.js",
+    "**/*.min.css",
 ];
 
 /// A set of exclusion globs. Paths are relative, with `/` separators.

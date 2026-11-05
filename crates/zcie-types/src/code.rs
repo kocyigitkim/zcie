@@ -37,6 +37,9 @@ pub struct FileRecord {
     /// Extractor version that made the symbols (`zcie_parse::PARSER_VERSION`). 0 for old records.
     #[serde(default)]
     pub parser_version: u32,
+    /// Modification time in nanoseconds since the Unix epoch when the file was indexed; 0 = unknown (ADR-032).
+    #[serde(default)]
+    pub mtime_ns: u64,
 }
 
 /// One call site of a file (ADR-019, D-071): the called name, its qualifier and its line.

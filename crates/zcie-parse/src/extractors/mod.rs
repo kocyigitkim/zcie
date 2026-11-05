@@ -1,5 +1,6 @@
 //! Per-language symbol extractors and shared helpers.
 
+pub mod lines;
 pub mod python;
 pub mod rust;
 pub mod typescript;

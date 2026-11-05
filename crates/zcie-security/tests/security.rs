@@ -94,3 +94,14 @@ fn generated_keys_are_distinct_hex() {
         assert!(hex.chars().all(|c| c.is_ascii_hexdigit()));
     }
 }
+
+#[test]
+fn default_exclude_set_covers_generated_files() {
+    // ADR-028, D-091 (TS-28-02): source maps and minified bundles.
+    let set = ExcludeSet::with_defaults(&[]).unwrap();
+    assert!(set.is_excluded("build/app.js.map"));
+    assert!(set.is_excluded("vendor/lib.min.js"));
+    assert!(set.is_excluded("site/style.min.css"));
+    assert!(!set.is_excluded("src/map.ts"));
+    assert!(!set.is_excluded("src/app.js"));
+}

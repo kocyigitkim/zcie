@@ -1,4 +1,5 @@
-//! Tree-sitter parsing of Rust, TypeScript and Python files.
+//! Tree-sitter parsing of Rust, TypeScript, JavaScript and Python files, and line parsing of other
+//! languages (ADR-030).
 //!
 //! See `docs/07-ingest-and-indexing.md` section 8.
 
@@ -17,6 +18,8 @@ pub use error::{Error, Result};
 /// Version 2: TypeScript top-level `const` and Python module-level UPPER_CASE constants.
 /// Version 3: the names that a file uses (`ParsedFile::references`, ADR-017).
 /// Version 4: the call sites of a file (`ParsedFile::calls`, ADR-019).
-pub const PARSER_VERSION: u32 = 4;
+/// Version 5: HFL files (ADR-028).
+/// Version 6: JavaScript and the languages of the line extractor (ADR-030).
+pub const PARSER_VERSION: u32 = 6;
 pub use imports::resolve_relative_import;
 pub use pool::{ParsedFile, ParsedSymbol, ParserPool};

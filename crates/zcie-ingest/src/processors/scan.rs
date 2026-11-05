@@ -3,6 +3,7 @@
 use std::collections::HashSet;
 use std::path::Path;
 
+use zcie_fs::DiscoveredFile;
 use zcie_store::values::FileIdValue;
 use zcie_store::{Cf, layout};
 use zcie_types::job::file_target;
@@ -34,9 +35,13 @@ impl Ingest {
         };
         let mut output = Output::default();
         let current: HashSet<String> = files.iter().map(|f| f.rel_path.clone()).collect();
-        for path in &current {
-            self.overlay.add(&worktree.worktree_id, path);
-            output.new_jobs.push(self.scan_job(job, &worktree, JobKind::IndexFile, file_target(&worktree.worktree_id, path)));
+        for file in &files {
+            // A skipped file gets no overlay entry: no job would clear it (the engine never becomes idle).
+            if self.unchanged_by_stat(&worktree, file)? {
+                continue;
+            }
+            self.overlay.add(&worktree.worktree_id, &file.rel_path);
+            output.new_jobs.push(self.scan_job(job, &worktree, JobKind::IndexFile, file_target(&worktree.worktree_id, &file.rel_path)));
         }
         self.add_delete_jobs(job, &worktree, &current, &mut output)?;
         if has_git {
@@ -46,6 +51,20 @@ impl Ingest {
         worktree.last_scan_utc = Some(now_utc());
         output.batch.put(Cf::Registry, key, &worktree)?;
         Ok(output)
+    }
+
+    /// True if the stored record has the same size and modification time and no reindex is needed.
+    fn unchanged_by_stat(&self, worktree: &WorktreeRecord, file: &DiscoveredFile) -> Result<bool> {
+        let t = self.tenant();
+        let Some(id) = self.store.get::<FileIdValue>(Cf::Lookup, &layout::path(t, &worktree.worktree_id, &file.rel_path))? else { return Ok(false) };
+        let Some(record) = self.store.get::<FileRecord>(Cf::Entities, &layout::entity(t, "file", &id.file_id))? else { return Ok(false) };
+        // shortcut: same size and modification time count as same content (ADR-032); a tool that restores the time is missed until the watcher or a real change indexes the file.
+        Ok(!record.deleted
+            && record.size == file.size
+            && record.mtime_ns != 0
+            && record.mtime_ns == file.mtime_ns
+            && record.parser_version == zcie_parse::PARSER_VERSION
+            && (!record.content_stored || self.objects.exists(&record.content_hash)))
     }
 
     fn scan_job(&self, job: &JobRecord, worktree: &WorktreeRecord, kind: JobKind, target: String) -> JobRecord {

@@ -22,6 +22,7 @@ pub struct PreparedFile {
     rel_path: String,
     hash: String,
     size: u64,
+    mtime_ns: u64,
     is_binary: bool,
     language: Option<String>,
     text: Option<String>,
@@ -60,11 +61,13 @@ impl Ingest {
         }
         // A file over the size limit is never read into memory: it gets a streamed hash and the
         // binary check of its first bytes only (large backups and disk images exist in real folders).
-        let size = std::fs::metadata(&abs)?.len();
+        let meta = std::fs::metadata(&abs)?;
+        let size = meta.len();
+        let mtime_ns = zcie_fs::mtime_ns(&meta);
         if size > self.config.max_file_bytes {
             let hash = zcie_fs::hash_file(&abs)?;
             let is_binary = zcie_fs::is_binary(&zcie_fs::read_head(&abs, zcie_fs::BINARY_PROBE_BYTES)?);
-            return Ok(Some(PreparedFile { worktree, rel_path, hash, size, is_binary, language: None, text: None, parsed: None, refresh: false }));
+            return Ok(Some(PreparedFile { worktree, rel_path, hash, size, mtime_ns, is_binary, language: None, text: None, parsed: None, refresh: false }));
         }
         let bytes = std::fs::read(&abs)?;
         let size = bytes.len() as u64;
@@ -74,12 +77,12 @@ impl Ingest {
         // `index_file` skips it. A scan queues each file, so this check keeps a rescan cheap.
         let stored = self.stored_state(&worktree.worktree_id, &rel_path, &hash)?;
         if matches!(stored, Stored::Current) {
-            return Ok(Some(PreparedFile { worktree, rel_path, hash, size, is_binary, language: None, text: None, parsed: None, refresh: false }));
+            return Ok(Some(PreparedFile { worktree, rel_path, hash, size, mtime_ns, is_binary, language: None, text: None, parsed: None, refresh: false }));
         }
         let refresh = matches!(stored, Stored::MissingContent);
         let too_large = size > self.config.max_file_bytes;
         let language = zcie_fs::language_for_path(&rel_path)
-            .filter(|l| self.config.languages.iter().any(|c| c == l) && !is_binary && !too_large)
+            .filter(|l| self.config.languages.iter().any(|c| c == l || c == "*") && !is_binary && !too_large)
             .map(str::to_string);
         let text = (!is_binary && !too_large).then(|| String::from_utf8_lossy(&bytes).into_owned());
         if text.is_some() {
@@ -89,7 +92,7 @@ impl Ingest {
             (Some(language), Some(text)) => self.parser.parse_file(language, &rel_path, text).ok(),
             _ => None,
         };
-        Ok(Some(PreparedFile { worktree, rel_path, hash, size, is_binary, language, text, parsed, refresh }))
+        Ok(Some(PreparedFile { worktree, rel_path, hash, size, mtime_ns, is_binary, language, text, parsed, refresh }))
     }
 
     /// Compares the stored record of the file with its current content hash.
@@ -114,7 +117,13 @@ impl Ingest {
         let t = self.tenant().to_string();
         let old: Option<FileRecord> = self.store.get(Cf::Entities, &layout::entity(&t, "file", file_id.as_str()))?;
         let current = |o: &FileRecord| o.content_hash == prepared.hash && !o.deleted && o.parser_version == zcie_parse::PARSER_VERSION;
-        if !prepared.refresh && old.as_ref().is_some_and(current) {
+        if let Some(mut same) = old.clone().filter(|o| !prepared.refresh && current(o)) {
+            // Same content: store only a new modification time, so the next scan can skip the file
+            // (ADR-032). `indexed_seq` stays: the content did not change (ADR-028 stale memory).
+            if same.mtime_ns != prepared.mtime_ns {
+                same.mtime_ns = prepared.mtime_ns;
+                output.batch.put(Cf::Entities, layout::entity(&t, "file", same.file_id.as_str()), &same)?;
+            }
             return Ok(output);
         }
         let record = self.file_record(job, &prepared, file_id, old.as_ref());
@@ -154,6 +163,7 @@ impl Ingest {
             deleted: false,
             content_stored: prepared.text.is_some(),
             parser_version: zcie_parse::PARSER_VERSION,
+            mtime_ns: prepared.mtime_ns,
         }
     }
 

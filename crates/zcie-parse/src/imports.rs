@@ -2,7 +2,7 @@
 
 /// Returns candidate repository-relative paths for a relative import.
 ///
-/// TypeScript: `./x` and `../x`. Python: `.x` and `..x`. Other imports give an empty list.
+/// TypeScript and JavaScript: `./x` and `../x`. Python: `.x` and `..x`. Other imports give an empty list.
 pub fn resolve_relative_import(from_path: &str, import: &str) -> Vec<String> {
     if import.starts_with("./") || import.starts_with("../") {
         return resolve_typescript(from_path, import);
@@ -18,7 +18,7 @@ fn resolve_typescript(from_path: &str, import: &str) -> Vec<String> {
     let Some(base) = normalize(&joined) else {
         return Vec::new();
     };
-    ["", ".ts", ".tsx", "/index.ts"]
+    ["", ".ts", ".tsx", "/index.ts", ".js", ".jsx", "/index.js"]
         .iter()
         .map(|suffix| format!("{base}{suffix}"))
         .collect()
