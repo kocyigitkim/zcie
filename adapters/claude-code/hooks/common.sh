@@ -184,6 +184,54 @@ zcie_send() {
         -X POST --data-binary @- "${ZCIE_URL}/v1/events" >/dev/null 2>&1 || true
 }
 
+# Print the path of the command playbook of the current project (ADR-029): ZCIE_PLAYBOOK_DIR, else
+# <zcie home>/run/playbook when the hook runs from an installed ZCIE home. Prints nothing if none.
+zcie_playbook_file() {
+    zcie_pb_dir="${ZCIE_PLAYBOOK_DIR:-}"
+    [ -n "$zcie_pb_dir" ] || { [ -d "$(dirname "$0")/../config" ] && zcie_pb_dir="$(dirname "$0")/../run/playbook"; }
+    zcie_pb_project="$(zcie_project_id)"
+    [ -n "$zcie_pb_dir" ] && [ -n "$zcie_pb_project" ] || return 0
+    printf '%s/%s.tsv' "$zcie_pb_dir" "$zcie_pb_project"
+}
+
+# Print the path of the handoff note of the current project (ADR-033): ZCIE_HANDOFF_DIR, else
+# <zcie home>/run/handoff when the hook runs from an installed ZCIE home. Prints nothing if none.
+zcie_handoff_file() {
+    zcie_ho_dir="${ZCIE_HANDOFF_DIR:-}"
+    [ -n "$zcie_ho_dir" ] || { [ -d "$(dirname "$0")/../config" ] && zcie_ho_dir="$(dirname "$0")/../run/handoff"; }
+    zcie_ho_project="$(zcie_project_id)"
+    [ -n "$zcie_ho_dir" ] && [ -n "$zcie_ho_project" ] || return 0
+    printf '%s/%s.md' "$zcie_ho_dir" "$zcie_ho_project"
+}
+
+# Print the main-thread records (not sidechains) of the last 30 MB of a transcript, one JSON object per
+# line. grep drops the tool results first: jq on a 140 MB transcript would take seconds (ADR-033).
+zcie_main_records() {
+    tail -c 30000000 "$1" 2>/dev/null | grep -E '"type":"(user|assistant)"' | jq -Rc 'fromjson? | objects | select(.isSidechain != true)' 2>/dev/null
+}
+
+# Print the real context size of the main thread (ADR-033): input + cache read + cache write
+# tokens of the last main-thread assistant record with usage. The tail is enough; the byte cut
+# keeps a huge image line from making the read slow. Fallback: about 6 bytes per token.
+zcie_context_tokens() {
+    zcie_ct="$(tail -c 4000000 "$1" 2>/dev/null | tail -n 300 | jq -Rn '[inputs | fromjson? | objects | select(.type == "assistant" and .isSidechain != true) | .message.usage | objects] | last | if . == null then empty else (.input_tokens // 0) + (.cache_read_input_tokens // 0) + (.cache_creation_input_tokens // 0) end' 2>/dev/null)"
+    case "$zcie_ct" in ''|*[!0-9]*) zcie_ct=$(( $(wc -c < "$1" | tr -d ' ') / 6 )) ;; esac
+    printf '%s' "$zcie_ct"
+}
+
+# Print the unique file paths in the last 4 MB of a transcript (about the last 30 turns), relative to the cwd when inside it.
+# One grep pass, no jq: it is for the guard, which runs on every prompt. Arguments: transcript, cwd.
+zcie_changed_paths() {
+    tail -c 4000000 "$1" 2>/dev/null | grep -o '"file_path":"[^"]*"' | sed 's/^"file_path":"//; s/"$//' \
+        | sort -u | awk -v c="$2/" 'c != "/" && index($0, c) == 1 { $0 = substr($0, length(c) + 1) } { print }'
+}
+
+# Print the unique files that the main thread changed (Edit, Write, MultiEdit, NotebookEdit),
+# relative to the cwd when inside it, at most 15. Arguments: transcript, cwd.
+zcie_changed_files() {
+    zcie_main_records "$1" | jq -r --arg c "$2" '.message.content[]? | select(.type == "tool_use" and (.name | IN("Edit", "Write", "MultiEdit", "NotebookEdit"))) | (.input.file_path // .input.notebook_path // empty) | if ($c != "") and startswith($c + "/") then .[($c | length) + 1:] else . end' 2>/dev/null | awk '!seen[$0]++' | head -n 15
+}
+
 # Appends one statistics line to the hook statistics of ADR-022: ZCIE_STATS_FILE, else
 # <zcie home>/stats/hooks.jsonl when the hook runs from an installed ZCIE home (it has a config
 # folder). Arguments: kind, fields (a JSON object). The line has the time, the session, the folder,
@@ -198,11 +246,11 @@ zcie_stat() {
         '{ts: (now | todate), kind: $k, session: $s, cwd: $c} + $f' >> "$zcie_stat_file" 2>/dev/null || true
 }
 
-# Returns 0 if the prompt is the words of the user. Notifications and command output that the
-# client puts in the prompt are not ("<task-notification>", "<bash-stdout>", "Caveat: ...").
+# Returns 0 if the prompt is the words of the user. Notifications, command output and subagent
+# reports that the client puts in the prompt are not ("<task-notification>", "Caveat: ...").
 zcie_is_user_text() {
     case "$1" in
-        "<task-notification>"*|"<local-command"*|"<command-name>"*|"<command-message>"*|"Caveat:"*|"[Request interrupted"*|"<bash-"*) return 1 ;;
+        "<task-notification>"*|"<local-command"*|"<command-name>"*|"<command-message>"*|"Caveat:"*|"[Request interrupted"*|"<bash-"*|"Another Claude session sent a message:"*|"<agent-message"*) return 1 ;;
     esac
     return 0
 }

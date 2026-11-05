@@ -22,6 +22,7 @@ zcie-ingest.workspace = true
 zcie-query.workspace = true
 zcie-api.workspace = true
 zcie-core.workspace = true
+zcie-lsp.workspace = true
 zcie-gateway-http.workspace = true
 zcie-sdk.workspace = true
 serde_json.workspace = true
@@ -111,3 +112,7 @@ path = "integration/evidence.rs"
 [[test]]
 name = "usage"
 path = "integration/usage.rs"
+
+[[test]]
+name = "handoff"
+path = "integration/handoff.rs"

@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 /// Each script: file name and content.
-const SCRIPTS: [(&str, &str); 17] = [
+const SCRIPTS: [(&str, &str); 18] = [
     ("common.sh", include_str!("../../../../../adapters/claude-code/hooks/common.sh")),
     ("session-start.sh", include_str!("../../../../../adapters/claude-code/hooks/session-start.sh")),
     ("session-context.sh", include_str!("../../../../../adapters/claude-code/hooks/session-context.sh")),
@@ -19,6 +19,7 @@ const SCRIPTS: [(&str, &str); 17] = [
     ("tool-relock.sh", include_str!("../../../../../adapters/claude-code/hooks/tool-relock.sh")),
     ("verify-gate.sh", include_str!("../../../../../adapters/claude-code/hooks/verify-gate.sh")),
     ("subagent-context.sh", include_str!("../../../../../adapters/claude-code/hooks/subagent-context.sh")),
+    ("session-handoff.sh", include_str!("../../../../../adapters/claude-code/hooks/session-handoff.sh")),
     ("cursor-hook.sh", include_str!("../../../../../adapters/cursor/cursor-hook.sh")),
     ("codex-hook.sh", include_str!("../../../../../adapters/codex/codex-hook.sh")),
 ];
@@ -83,7 +84,7 @@ pub fn outdated(home: &Path) -> Vec<&'static str> {
 pub struct HookSpec {
     /// Claude Code hook event.
     pub event: &'static str,
-    /// Tool matcher (PreToolUse and PostToolUse only).
+    /// Tool matcher (PreToolUse, PostToolUse and PostToolUseFailure only).
     pub matcher: Option<&'static str>,
     /// Script file name in `<home>/hooks/`.
     pub script: &'static str,
@@ -96,7 +97,7 @@ pub struct HookSpec {
 fn timeout_of(script: &str) -> u32 {
     match script {
         "verify-gate.sh" => 150,
-        "inject-context.sh" | "session-map.sh" | "read-guard.sh" | "subagent-context.sh" => 10,
+        "inject-context.sh" | "session-map.sh" | "read-guard.sh" | "subagent-context.sh" | "session-handoff.sh" => 10,
         _ => 5,
     }
 }
@@ -110,19 +111,28 @@ pub fn profile(capture: bool, inject: bool, guards: bool, lean: bool, check: boo
         add("SessionStart", None, "session-start.sh");
         add("UserPromptSubmit", None, "user-prompt-submit.sh");
         add("PostToolUse", Some("Edit|Write|MultiEdit|NotebookEdit|Bash"), "post-tool-use.sh");
+        // A Bash command with an exit code other than 0 fires only PostToolUseFailure (ADR-029).
+        add("PostToolUseFailure", Some("Bash"), "post-tool-use.sh");
         add("SessionEnd", None, "stop.sh");
         add("Stop", None, "assistant-message.sh");
     }
     if inject {
         add("UserPromptSubmit", None, "inject-context.sh");
         add("SessionStart", Some("startup"), "session-map.sh");
-        // A subagent gets no prompt hook: its task gets the capsule (ADR-024).
+        // A subagent gets no prompt hook: its task is queued unchanged, and the capsule of the task
+        // is the context of the subagent when it starts (ADR-024; auto mode cannot check a changed input).
         add("PreToolUse", Some("Agent|Task"), "subagent-context.sh");
+        add("SubagentStart", None, "subagent-context.sh");
+        // The note of a finished subagent for the next ones (ADR-033).
+        add("SubagentStop", None, "subagent-context.sh");
+        // The handoff of the session: written before a compaction, printed after /clear or a compaction (ADR-033).
+        add("PreCompact", None, "session-handoff.sh");
+        add("SessionStart", Some("clear|compact"), "session-handoff.sh");
     }
     if guards {
         add("SessionStart", Some("startup"), "session-context.sh");
         add("UserPromptSubmit", None, "session-guard.sh");
-        add("PreToolUse", Some("Read"), "read-guard.sh");
+        add("PreToolUse", Some("Read|Bash"), "read-guard.sh");
     }
     if lean {
         add("UserPromptSubmit", None, "tool-unlock.sh");
@@ -146,5 +156,20 @@ mod tests {
         assert!(limit("verify-gate.sh") >= 130, "the check of the project can take 120 s");
         assert!(limit("inject-context.sh") >= 8, "query 4 s + expansion 2 s");
         assert!(hooks.iter().filter(|h| h.script == "verify-gate.sh").count() == 2, "PostToolUse and Stop");
+    }
+
+    #[test]
+    fn the_handoff_and_the_subagent_notes_are_registered() {
+        let hooks = profile(false, true, false, false, false);
+        assert!(hooks.iter().any(|h| h.event == "PreCompact" && h.matcher.is_none() && h.script == "session-handoff.sh"));
+        assert!(hooks.iter().any(|h| h.event == "SessionStart" && h.matcher == Some("clear|compact") && h.script == "session-handoff.sh"));
+        assert!(hooks.iter().any(|h| h.event == "SubagentStop" && h.matcher.is_none() && h.script == "subagent-context.sh"));
+    }
+
+    #[test]
+    fn failed_bash_commands_reach_the_capture_hook() {
+        // ADR-029 (TS-29-01): Claude Code fires only PostToolUseFailure for a nonzero exit code.
+        let hooks = profile(true, false, false, false, false);
+        assert!(hooks.iter().any(|h| h.event == "PostToolUseFailure" && h.matcher == Some("Bash") && h.script == "post-tool-use.sh"));
     }
 }

@@ -229,16 +229,19 @@ fn subagent_hook(url: &str, key: &str, tmp: &std::path::Path, input: &Value) -> 
 fn ts_24_02_a_subagent_task_gets_the_zcie_capsule() {
     let (dir, daemon, _repo) = ledger_daemon();
     let task = format!("Subagent task: {EDIT_PROMPT}");
-    let agent = json!({"session_id": "s-main", "cwd": "/tmp", "tool_name": "Agent", "tool_input": {"description": "fee", "subagent_type": "general-purpose", "prompt": task}});
-    let out: Value = serde_json::from_str(&subagent_hook(&daemon.url(), &daemon.admin_key(), dir.path(), &agent)).expect("an updated input");
-    let prompt = out["hookSpecificOutput"]["updatedInput"]["prompt"].as_str().unwrap();
-    assert!(prompt.starts_with(&task), "the task stays first");
-    assert!(prompt.contains("Context from the ZCIE index") && prompt.contains("apply_late_fee"), "{prompt}");
-    assert_eq!(out["hookSpecificOutput"]["updatedInput"]["subagent_type"], "general-purpose", "the other fields stay");
+    let agent = json!({"session_id": "s-main", "hook_event_name": "PreToolUse", "cwd": "/tmp", "tool_name": "Agent", "tool_input": {"description": "fee", "subagent_type": "general-purpose", "prompt": task}});
+    let start = json!({"session_id": "s-main", "hook_event_name": "SubagentStart", "cwd": "/tmp", "agent_id": "a1", "agent_type": "general-purpose"});
+    assert_eq!(subagent_hook(&daemon.url(), &daemon.admin_key(), dir.path(), &agent), "", "the Agent input is not changed (auto mode checks it)");
+    let out: Value = serde_json::from_str(&subagent_hook(&daemon.url(), &daemon.admin_key(), dir.path(), &start)).expect("a subagent context");
+    assert_eq!(out["hookSpecificOutput"]["hookEventName"], "SubagentStart");
+    let context = out["hookSpecificOutput"]["additionalContext"].as_str().unwrap();
+    assert!(context.contains("Context from the ZCIE index") && context.contains("apply_late_fee"), "{context}");
     assert!(std::fs::read_to_string(dir.path().join("stats.jsonl")).unwrap().contains("subagent_context"));
-    let read = json!({"session_id": "s-main", "cwd": "/tmp", "tool_name": "Read", "tool_input": {"file_path": "/x"}});
+    assert_eq!(subagent_hook(&daemon.url(), &daemon.admin_key(), dir.path(), &start), "", "the queue is empty: no capsule");
+    let read = json!({"session_id": "s-main", "hook_event_name": "PreToolUse", "cwd": "/tmp", "tool_name": "Read", "tool_input": {"file_path": "/x"}});
     assert_eq!(subagent_hook(&daemon.url(), &daemon.admin_key(), dir.path(), &read), "");
-    assert_eq!(subagent_hook("http://127.0.0.1:9", "k", dir.path(), &agent), "", "no daemon: the call runs unchanged");
+    subagent_hook("http://127.0.0.1:9", "k", dir.path(), &agent);
+    assert_eq!(subagent_hook("http://127.0.0.1:9", "k", dir.path(), &start), "", "no daemon: the subagent starts with no capsule");
 }
 
 /// A fixed answer with one good match (the capsule is injected for it).
@@ -333,3 +336,21 @@ fn ts_25_04_claude_hook_stays_silent_in_cursor_and_works_outside_it() {
     assert!(run(false, &[]).contains("ZCIE context"), "a Claude Code session gets the capsule");
     assert!(run(true, &[("ZCIE_APP", "cursor")]).contains("ZCIE context"), "the Cursor dispatcher gets it");
 }
+
+/// ADR-033: a general question with no project term gets the project card once per session.
+#[test]
+fn f7_01_a_general_prompt_gets_the_project_card_once_per_session() {
+    let (dir, daemon, _repo) = ledger_daemon();
+    let run = |session: &str, prompt: &str| inject_in(&daemon.url(), &daemon.admin_key(), dir.path(), session, prompt);
+    let general = "bu programa başka neler geliştirebiliriz, fikir ver lütfen";
+    let first = run("s-card", general);
+    assert!(first.starts_with("ZCIE project card (once per session"), "{first}");
+    assert!(first.contains("Folder "), "the card describes the project folder: {first}");
+    assert_eq!(run("s-card", general), "", "the same session gets no second card");
+    assert_eq!(run("s-card", "devam et"), "", "a short command gets no card");
+    let pointing = run("s-card-2", "bunu daha iyi hale getirebilir miyiz, nasıl yapalım bence?");
+    assert_eq!(pointing, "", "a prompt that points to the conversation gets no card");
+    let capsule = run("s-card-3", EDIT_PROMPT);
+    assert!(capsule.contains("source src/fees.rs:4-9") && !capsule.contains("project card"), "a prompt with a capsule gets no card: {capsule}");
+}
+

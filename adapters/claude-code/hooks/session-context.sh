@@ -1,6 +1,6 @@
 #!/bin/sh
 # ZCIE session context for the Claude Code SessionStart hook. It prints short working rules and a
-# compact catalog of the tools that the ZCIE profile disabled, once per session (stdout of
+# compact catalog of the tools that the ZCIE profile disabled, and the command playbook (ADR-029), once per session (stdout of
 # SessionStart goes to the model context, and it is cached). Rule: never block; exit 0.
 
 cat <<'TEXT'
@@ -9,6 +9,17 @@ ZCIE token rules for this session:
 - Answer briefly. Cite file:line instead of repeating code. Do not restate the question or the plan.
 - Read only the line ranges you need (Read with offset/limit). For large files, a ZCIE outline gives symbol line ranges.
 TEXT
+
+# Build and test commands that passed in this project before (ADR-029), the 5 newest.
+if command -v jq >/dev/null 2>&1; then
+    . "$(dirname "$0")/common.sh"
+    zcie_read_input
+    playbook="$(zcie_playbook_file)"
+    if [ -s "$playbook" ]; then
+        printf '%s\n' "Commands that passed in this project before (newest last; check that they still apply):"
+        tail -n 5 "$playbook" | sed 's/^/- /'
+    fi
+fi
 
 settings="${ZCIE_SETTINGS_FILE:-}"
 command -v jq >/dev/null 2>&1 && [ -r "$settings" ] || exit 0

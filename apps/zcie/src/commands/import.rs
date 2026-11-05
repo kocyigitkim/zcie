@@ -19,7 +19,7 @@ use super::project::find_project_id;
 /// Key suffix of answer records in the format "Decision: … (question: …)" (version 2).
 const ANSWER_KEY_SUFFIX: &str = ":answers-2";
 /// Text starts of messages that the user did not write (tool and command output, notifications).
-pub(crate) const NOT_USER_TEXT: [&str; 7] = ["<task-notification>", "<local-command", "<command-name>", "<command-message>", "Caveat:", "[Request interrupted", "<bash-"];
+pub(crate) const NOT_USER_TEXT: [&str; 9] = ["<task-notification>", "<local-command", "<command-name>", "<command-message>", "Caveat:", "[Request interrupted", "<bash-", "Another Claude session sent a message:", "<agent-message"];
 
 /// Options of `zcie import claude`.
 #[derive(Debug, Args)]
