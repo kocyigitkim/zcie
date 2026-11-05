@@ -19,7 +19,7 @@ debounce_ms = 200             # file watcher debounce
 
 [index]
 max_file_bytes = 1048576                      # larger files get metadata and hash only
-languages = ["rust", "typescript", "python"]  # languages for symbol extraction
+languages = ["*"]  # languages for symbol extraction; "*" = all that ZCIE knows (ADR-030)
 
 [query]
 default_token_budget = 250
@@ -43,3 +43,8 @@ command_output_max_bytes = 65536  # command, tool and test output is truncated t
 [vector]
 enabled = true                    # local vector search (ADR-011); needs the model: zcie vector install
 model = "potion-base-8M"          # folder under <home>/models/
+
+[lsp]
+enabled = true       # "who calls X" from rust-analyzer or typescript-language-server (ADR-033); false: heuristic only
+idle_minutes = 10     # a server without a query for this long stops
+timeout_ms = 3000     # longest wait for one answer; the heuristic answers when the server is not ready

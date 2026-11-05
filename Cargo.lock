@@ -2946,6 +2946,7 @@ dependencies = [
  "anyhow",
  "blake3",
  "clap",
+ "reqwest",
  "serde",
  "serde_json",
  "tempfile",
@@ -3013,6 +3014,7 @@ dependencies = [
  "zcie-cache",
  "zcie-fs",
  "zcie-ingest",
+ "zcie-lsp",
  "zcie-memory",
  "zcie-query",
  "zcie-runtime",
@@ -3096,6 +3098,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "zcie-lsp"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "zcie-mcp"
 version = "0.1.0"
 dependencies = [
@@ -3150,6 +3160,7 @@ dependencies = [
  "zcie-context",
  "zcie-graph",
  "zcie-ingest",
+ "zcie-lsp",
  "zcie-memory",
  "zcie-parse",
  "zcie-search",
@@ -3262,6 +3273,7 @@ dependencies = [
  "zcie-gateway-http",
  "zcie-graph",
  "zcie-ingest",
+ "zcie-lsp",
  "zcie-memory",
  "zcie-query",
  "zcie-sdk",

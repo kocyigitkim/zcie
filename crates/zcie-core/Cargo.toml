@@ -17,6 +17,7 @@ zcie-vector.workspace = true
 zcie-cache.workspace = true
 zcie-ingest.workspace = true
 zcie-query.workspace = true
+zcie-lsp.workspace = true
 zcie-api.workspace = true
 serde.workspace = true
 serde_json.workspace = true

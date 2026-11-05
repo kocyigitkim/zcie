@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::{Error, Result};
 
 /// Sections that environment variables `ZCIE_<SECTION>_<KEY>` can change.
-const SECTIONS: [&str; 10] = ["server", "storage", "ingest", "index", "query", "cache", "security", "capture", "vector", "context"];
+const SECTIONS: [&str; 11] = ["server", "storage", "ingest", "index", "query", "cache", "security", "capture", "vector", "context", "lsp"];
 
 /// `[server]`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,7 +75,7 @@ pub struct IndexSection {
 
 impl Default for IndexSection {
     fn default() -> Self {
-        Self { max_file_bytes: 1_048_576, languages: vec!["rust".into(), "typescript".into(), "python".into()] }
+        Self { max_file_bytes: 1_048_576, languages: vec!["*".into()] }
     }
 }
 
@@ -169,6 +169,24 @@ impl Default for VectorSection {
     }
 }
 
+/// `[lsp]` (ADR-033): language servers that answer "who calls X" for Rust and TypeScript.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct LspSection {
+    /// Ask rust-analyzer or typescript-language-server for callers. False: the heuristic only.
+    pub enabled: bool,
+    /// Minutes without a message after which a server stops.
+    pub idle_minutes: u64,
+    /// Longest wait for one server answer in milliseconds.
+    pub timeout_ms: u64,
+}
+
+impl Default for LspSection {
+    fn default() -> Self {
+        Self { enabled: true, idle_minutes: 10, timeout_ms: 3000 }
+    }
+}
+
 /// The full `engine.toml`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -193,6 +211,8 @@ pub struct EngineConfig {
     pub vector: VectorSection,
     /// `[context]`.
     pub context: ContextSection,
+    /// `[lsp]`.
+    pub lsp: LspSection,
 }
 
 /// `[context]` (ADR-017): the context-efficiency behavior of the query engine. Each switch turns

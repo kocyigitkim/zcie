@@ -13,7 +13,7 @@
       "worker_count": { "type": "integer", "minimum": 1 }, "debounce_ms": { "type": "integer", "minimum": 0 } } },
     "index": { "type": "object", "additionalProperties": false, "properties": {
       "max_file_bytes": { "type": "integer", "minimum": 1 },
-      "languages": { "type": "array", "items": { "enum": ["rust", "typescript", "python"] } } } },
+      "languages": { "type": "array", "items": { "type": "string" } } } },
     "query": { "type": "object", "additionalProperties": false, "properties": {
       "default_token_budget": { "type": "integer", "minimum": 50 }, "max_token_budget": { "type": "integer", "minimum": 50 },
       "max_results": { "type": "integer", "minimum": 1 }, "graph_max_depth": { "type": "integer", "minimum": 1 },
@@ -23,6 +23,8 @@
     "security": { "type": "object", "additionalProperties": false, "properties": {
       "redact_secrets": { "type": "boolean" }, "exclude_globs": { "type": "array", "items": { "type": "string" } } } },
     "capture": { "type": "object", "additionalProperties": false, "properties": {
-      "assistant_messages": { "type": "boolean" }, "command_output_max_bytes": { "type": "integer", "minimum": 1 } } }
+      "assistant_messages": { "type": "boolean" }, "command_output_max_bytes": { "type": "integer", "minimum": 1 } } },
+    "lsp": { "type": "object", "additionalProperties": false, "properties": {
+      "enabled": { "type": "boolean" }, "idle_minutes": { "type": "integer", "minimum": 1 }, "timeout_ms": { "type": "integer", "minimum": 1 } } }
   }
 }

@@ -66,8 +66,10 @@ pub fn start_engine(paths: InstancePaths, config: EngineConfig) -> Result<Runnin
         event_seq,
     ));
     let cache = Arc::new(L0Cache::new(config.cache.l0_capacity_entries));
+    let lsp = Arc::new(zcie_lsp::Pool::new(lsp_config(&config)));
     let query = QueryEngine::new(Arc::clone(&store), Arc::clone(&objects), search, Arc::clone(&cache), Arc::clone(&ingest), query_config(&config))
-        .with_vectors(vectors.clone());
+        .with_vectors(vectors.clone())
+        .with_lsp(Some(lsp));
     let (clients, new_admin_key) = crate::clients::ensure_clients(&paths.clients_toml())?;
     let dev_key = std::env::var(&config.server.api_key_env).ok().filter(|k| !k.is_empty());
     let api_config = ApiConfig { tenant: LOCAL_TENANT.into(), version: env!("CARGO_PKG_VERSION").into() };
@@ -197,6 +199,14 @@ fn query_config(config: &EngineConfig) -> QueryConfig {
             graph_rank: config.context.graph_rank,
             compress: config.context.compress,
         },
+    }
+}
+
+fn lsp_config(config: &EngineConfig) -> zcie_lsp::Config {
+    zcie_lsp::Config {
+        enabled: config.lsp.enabled,
+        idle: Duration::from_secs(config.lsp.idle_minutes * 60),
+        timeout: Duration::from_millis(config.lsp.timeout_ms),
     }
 }
 

@@ -22,6 +22,7 @@ members = [
     "crates/zcie-fs",
     "crates/zcie-git",
     "crates/zcie-parse",
+    "crates/zcie-lsp",
     "sdk/rust",
     "apps/zcie",
     "gateways/mcp",
@@ -44,6 +45,7 @@ zcie-runtime = { path = "crates/zcie-runtime" }
 zcie-fs = { path = "crates/zcie-fs" }
 zcie-git = { path = "crates/zcie-git" }
 zcie-parse = { path = "crates/zcie-parse" }
+zcie-lsp = { path = "crates/zcie-lsp" }
 zcie-symbols = { path = "crates/zcie-symbols" }
 zcie-graph = { path = "crates/zcie-graph" }
 zcie-memory = { path = "crates/zcie-memory" }
